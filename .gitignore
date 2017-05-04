@@ -35,3 +35,8 @@
 # Swap files
 *~
 *.swp
+
+# Binaries
+bin/*
+dropboxServer
+dropboxClient
