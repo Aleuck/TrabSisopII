@@ -1,3 +1,9 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include "dropboxUtil.h"
 
-
-void *client_handler(void *client_socket);
+struct Client{
+  int devices[2];
+  char userid[MAXNAME];
+  int logged_in;
+};
