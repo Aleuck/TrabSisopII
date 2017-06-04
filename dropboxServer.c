@@ -103,14 +103,15 @@ int main(int argc, char* argv[]) {
     listen(server_sock , 5);
     // Accept
     while(temp_sock = accept(server_sock, (struct sockaddr*)&client_addr[client_count], (socklen_t*)&sock_size)) {
-
+        printf("temp_sock %d\n",temp_sock);
         if(recv(temp_sock, user_name,sizeof(user_name), 0) < 0){
           printf("error on recv\n");
           return 0;
         }
         aux_index = isLoggedIn(user_name);
         server_response = 1;
-
+        printf("aux_index %d \n",aux_index);
+        printf("logged %d\n",user_list[aux_index].logged_in);
         if (aux_index != -1) {
           if (user_list[aux_index].logged_in == 2) {
             printf("User device limit reached for user: %s\n", user_name);
@@ -118,11 +119,13 @@ int main(int argc, char* argv[]) {
           }else if (user_list[aux_index].devices[0] == 0) {
               user_list[aux_index].devices[0] = temp_sock;
               info.device = 0;
+              user_list[aux_index].logged_in++;
             }else{
               user_list[aux_index].devices[1] = temp_sock;
               info.device = 1;
+              user_list[aux_index].logged_in++;
             }
-            user_list[aux_index].logged_in++;
+
         }else{
           strcpy(user_list[client_count].userid,user_name);
           user_list[client_count].devices[0] = temp_sock;
@@ -137,6 +140,7 @@ int main(int argc, char* argv[]) {
         }
 
         send(temp_sock, &server_response,sizeof(server_response), 0);
+        printf("server_response %d \n",server_response);
         if(server_response != -1){
           pthread_t socket_handler;
           info.index = aux_index;
@@ -171,6 +175,9 @@ void *client_handler(void *client_info){
   while (client_request != 100) {
     if (recv(user_list[client_number].devices[client_device], &client_request ,sizeof(client_request), 0) == 0) {
       user_list[client_number].logged_in--;
+      close(user_list[client_number].devices[client_device]);
+      user_list[client_number].devices[client_device] = 0;
+      printf("ended here\n");
       return 0;
     }
     printf("client_request = %d for client = %s\n",client_request,user_list[client_number].userid);
@@ -188,8 +195,10 @@ void *client_handler(void *client_info){
     }
   }
   printf("Client connection lost for client %s\n", user_list[client_number].userid);
-  user_list[client_number].logged_in = 0;
+  user_list[client_number].logged_in--;
+
   close(user_list[client_number].devices[client_device]);
+  user_list[client_number].devices[client_device] = 0;
   return 0;
 
 }
