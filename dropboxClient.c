@@ -21,8 +21,7 @@ int create_dir_for(char *user_name){
   const char* home_dir = getenv ("HOME");
   char path [256];
   printf("user name recived = %s\n",user_name);
-  sprintf (path, "%s/Desktop/SisopBox/sync_dir_%s",home_dir,user_name);
-
+  sprintf (path, "%s/Desktop/client_dir_%s",home_dir,user_name);
   if (stat(path, &st) == -1) {
     mkdir(path, 07777);
     return 1;
@@ -63,10 +62,17 @@ int main(int argc, char* argv[]) {
     }
     //SENDS MESSAGE TO SERVER AND RECIEVES COPY
     send(client_sock,argv[1],sizeof(argv[1]),0);
-    recv(client_sock,&server_response_int,sizeof(int),0);
+    if(recv(client_sock,&server_response_int,sizeof(int),0) == 0){
+      printf("server cap reached\n");
+      return 0;
+    }
+    if(server_response_int == -1){
+      printf("too many connections\n");
+      return 0;
+    }
 
     printf("Connected successfully to server: %d\n", server_response_int);
-
+    create_dir_for(argv[1]);
     while (client_request != 100) {
 
       scanf("%d",&client_request);
