@@ -5,10 +5,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include <errno.h>
 #include "dropboxUtil.h"
 #include "dropboxServer.h"
-
 
 #define  get_sync_dir_OPTION  0
 #define  send_file_OPTION 1

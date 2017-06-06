@@ -1,15 +1,14 @@
 CC = gcc
 CFLAGS = -W -Wall
 LIBDIR =.
-LDFLAGS = -L$(LIBDIR)
+LDFLAGS = -L$(LIBDIR) -pthread -lpthread
 SRC = dropboxServer.c dropboxClient.c
 OBJ = $(SRC:.c=.o)
 
 all: dropboxServer dropboxClient
 
-dropboxServer: dropboxServer.o $(LIBDIR)/dropboxUtil.so
+dropaboxServer: dropboxServer.o $(LIBDIR)/dropboxUtil.so
 	$(CC) -o $@ $< $(CFLAGS) $(LDFLAGS)
-
 dropboxClient: dropboxClient.o $(LIBDIR)/dropboxUtil.so
 	$(CC) -o $@ $< $(CFLAGS) $(LDFLAGS)
 
