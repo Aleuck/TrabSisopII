@@ -104,7 +104,7 @@ int main(int argc, char* argv[]) {
   listen(server_sock , 5);
   // Accept
   while (temp_sock = accept(server_sock, (struct sockaddr *) &client_addr[client_count], (socklen_t *) &sock_size)) {
-    printf("temp_sock %d\n",t emp_sock);
+    printf("temp_sock %d\n", temp_sock);
     if (recv(temp_sock, user_name, sizeof(user_name), 0) < 0){
       printf("error on recv\n");
       return 0;
