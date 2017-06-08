@@ -7,7 +7,7 @@ OBJ = $(SRC:.c=.o)
 
 all: dropboxServer dropboxClient
 
-dropaboxServer: dropboxServer.o $(LIBDIR)/dropboxUtil.so
+dropboxServer: dropboxServer.o $(LIBDIR)/dropboxUtil.so
 	$(CC) -o $@ $< $(CFLAGS) $(LDFLAGS)
 dropboxClient: dropboxClient.o $(LIBDIR)/dropboxUtil.so
 	$(CC) -o $@ $< $(CFLAGS) $(LDFLAGS)
