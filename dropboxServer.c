@@ -2,6 +2,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <stdlib.h>
@@ -147,7 +148,7 @@ int main(int argc, char* argv[]) {
           client_count += 1;
 
           printf("Creating new thread\n");
-          if( pthread_create( &temp_sock , NULL,  client_handler , (void *)&info) < 0) {
+          if( pthread_create( &socket_handler , NULL,  client_handler , (void *)&info) < 0) {
             fprintf(stderr, "Error: Could not create thread.\n");
             exit(-1);
           }
