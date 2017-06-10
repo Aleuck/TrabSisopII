@@ -30,4 +30,4 @@ $(LIBDIR)/dropboxUtil.so: dropboxUtil.o
 	$(CC) -o $@ -c $< $(CFLAGS)
 
 clean:
-	rm -rf *.o $(LIBDIR)/dropboxUtil.so
+	rm -rf *.o dropboxClient dropboxServer $(LIBDIR)/dropboxUtil.so
