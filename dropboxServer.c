@@ -11,6 +11,10 @@
 #include "dropboxUtil.h"
 #include "dropboxServer.h"
 
+#include "logging.h"
+
+#define LOGLEVEL 5 /* debug */
+
 #define  get_sync_dir_OPTION  0
 #define  send_file_OPTION 1
 #define  recive_file_OPTION 2
@@ -73,6 +77,11 @@ int main(int argc, char* argv[]) {
   struct handler_info info;
   int server_sock, client_sock, sock_size, *aux_sock, temp_sock, aux_index, server_response, *index;
   int client_count = 0;
+
+  loginfo("server started...");
+  flogdebug("%d arguments given", argc);
+  flogdebug("program name is %s", argv[0]);
+
   if (argc != 2) {
     fprintf(stderr, "Usage: %s <port>\n", argv[0]);
     exit(-1);
