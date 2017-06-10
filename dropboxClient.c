@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <pthread.h>
 #include "dropboxUtil.h"
 #include "dropboxClient.h"
 
@@ -31,38 +32,51 @@ int create_dir_for(char *user_name) {
   return 0;
 }
 
+int connect(SESSION *user_session, const char *host, const char *port) {
+  // create TCP socket
+  user_session.connection = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+  if (user_session.connection < 0) {
+    fprintf(stderr, "Error: Could not create socket.\n");
+    return 0;
+  }
+
+  // Initialize
+  memset((char *) &user_session->server, 0, sizeof(user_session->server));
+  user_session->server.sin_addr.s_addr = inet_addr(host);
+  user_session->server.sin_family = AF_INET;
+  user_session->server.sin_port = htons(atoi(port));
+  return 1;
+
+  if (connect(user_session.connection, (struct sockaddr *) &user_session->server, sizeof (user_session->server)) < 0) {
+    printf("Failed to connect to server\n");
+    return -1;
+  }
+}
+
+int login(SESSION user_session) {
+  return 1;
+}
+
 int main(int argc, char* argv[]) {
   struct stat st = {0};
   struct sockaddr_in server_addr;
   int client_sock, server_response_int, client_request = 1;
   char response_buffer[MSG_SIZE], input_buffer[MSG_SIZE], *user_name;
+  SESSION user_session = {0};
 
   if (argc < 4) {
     fprintf(stderr, "Usage: %s <fulano> <host> <port>\n", argv[0]);
     exit(-1);
   }
-
-  // create TCP socket
-  client_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
-  if (client_sock < 0) {
-    fprintf(stderr, "Error: Could not create socket.\n");
+  strncpy(user_session.userid, argv[1], MAXNAME-1);
+  if (!connect(&user_session, argv[2], argv[3])) {
     exit(1);
   }
 
-  // Initialize
 
-  memset((char *) &server_addr, 0, sizeof(server_addr));
-  server_addr.sin_addr.s_addr = inet_addr(argv[2]);
-  server_addr.sin_family = AF_INET;
-  server_addr.sin_port = htons(atoi(argv[3]));
-
-  if (connect(client_sock, (struct sockaddr *) &server_addr, sizeof (server_addr)) < 0) {
-    printf("Failed to connect to server\n");
-    return -1;
-  }
-  //SENDS MESSAGE TO SERVER AND RECIEVES COPY
-  send(client_sock, argv[1], sizeof(argv[1]), 0);
-  if(recv(client_sock, &server_response_int, sizeof(int), 0) == 0){
+  //
+  send(user_session.connection, user_session.userid, MAXNAME, 0);
+  if(recv(user_session.connection, &server_response_int, sizeof(int), 0) == 0){
     printf("server cap reached\n");
     return 0;
   }
