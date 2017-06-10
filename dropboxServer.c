@@ -13,8 +13,6 @@
 
 #include "logging.h"
 
-#define LOGLEVEL 5 /* debug */
-
 #define  get_sync_dir_OPTION  0
 #define  send_file_OPTION 1
 #define  recive_file_OPTION 2
