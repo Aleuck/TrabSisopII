@@ -1,12 +1,14 @@
-#ifndef __DROPBOX_UTIL
-#define __DROPBOX_UTIL
+#ifndef DROPBOX_UTIL_H
+#define DROPBOX_UTIL_H
 
 // Maximum file name with null terminator
 #define MAXNAME 100
 
-#define REQUEST_LIST      1
-#define REQUEST_UPLOAD    2
-#define REQUEST_DOWNLOAD  3
+#define CMD_UPLOAD       1
+#define CMD_DOWNLOAD     2
+#define CMD_LIST         3
+#define CMD_GET_SYNC_DIR 4
+#define CMD_EXIT         5
 
 typedef struct file_info {
   char name[MAXNAME];
@@ -15,4 +17,4 @@ typedef struct file_info {
   int size;
 } FILE_INFO;
 
-#endif
+#endif /* DROPBOX_UTIL_H */
