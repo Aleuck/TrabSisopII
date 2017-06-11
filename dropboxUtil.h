@@ -23,7 +23,7 @@ typedef struct file_info {
 
 typedef struct request {
   char command;
-  FILEINFO file_info;
+  FILE_INFO file_info;
 } REQUEST;
 
 #endif /* DROPBOX_UTIL_H */

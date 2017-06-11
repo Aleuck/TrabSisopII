@@ -23,7 +23,7 @@ struct handler_info {
   int device;
 };
 
-struct Client user_list[MAXUSER];
+struct client user_list[MAXUSER];
 
 void *client_handler(void *client_id);
 
