@@ -95,8 +95,26 @@ void end_session(SESSION * user_session) {
 }
 
 void send_file(SESSION *user_session, char *filename) {
-}
+
+    }
 void get_file(SESSION *user_session, char *filename) {
+  char buffer[SEG_SIZE];
+  REQUEST client_request;
+  int file_handler, recieved_size;
+  strcpy(client_request.file_info.name, filename);
+  send(user_session->connection,(char *)&client_request,sizeof(client_request),0);
+  file_handler = fopen(filename,"w");
+  bzero(buffer,SEG_SIZE);
+
+  while ((recieved_size = recv(socket, buffer, sizeof(buffer), 0)) > 0){
+      fprintf(stderr, "1\n");
+      fwrite(buffer, 1,recieved_size, file_handler); // Escreve no arquivo
+      bzero(buffer, SEG_SIZE);
+      if(recieved_size < SEG_SIZE){ // Se o pacote que veio, for menor que o tamanho total, eh porque o arquivo acabou
+          fclose(file_handler);
+          return;
+        }
+      }
 }
 
 int main(int argc, char* argv[]) {
