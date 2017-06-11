@@ -5,7 +5,7 @@
 typedef struct session {
   char userid[MAXNAME];
   struct sockaddr_in server;
-  int connecion;    // tcp socket
+  int connection;    // tcp socket
   pthread_mutex_t connection_mutex;
 } SESSION;
 

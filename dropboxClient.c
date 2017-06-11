@@ -32,10 +32,10 @@ int create_dir_for(char *user_name) {
   return 0;
 }
 
-int connect(SESSION *user_session, const char *host, const char *port) {
+int connect_to_server(SESSION *user_session, const char *host, const char *port) {
   // create TCP socket
-  user_session.connection = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
-  if (user_session.connection < 0) {
+  user_session->connection = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+  if (user_session->connection < 0) {
     fprintf(stderr, "Error: Could not create socket.\n");
     return 0;
   }
@@ -46,7 +46,7 @@ int connect(SESSION *user_session, const char *host, const char *port) {
   user_session->server.sin_family = AF_INET;
   user_session->server.sin_port = htons(atoi(port));
 
-  if (connect(user_session.connection, (struct sockaddr *) &user_session->server, sizeof (user_session->server)) < 0) {
+  if (connect(user_session->connection, (struct sockaddr *) &user_session->server, sizeof (user_session->server)) < 0) {
     printf("Failed to connect to server.\n");
     return -1;
   }
@@ -58,18 +58,21 @@ void disconnect(SESSION *user_session) {
 };
 
 int login(SESSION *user_session) {
-  uint16_t server_response_int;
+  char server_response_byte = 0;
   send(user_session->connection, user_session->userid, MAXNAME, 0);
-  if(recv(user_session->connection, &server_response_int, sizeof(uint16_t), 0) == 0){
+  if (recv(user_session->connection, &server_response_byte, sizeof(char), 0) == 0){
     printf("Server cap reached\n");
     return 0;
   }
-  server_response_int = ntohs(server_response_int);
-  if(server_response_int == -1){
-    printf("too many connections\n");
+  if (server_response_byte == 1) {
+    printf("Login successful.\n");
+    return 1;
+  }
+  if (server_response_byte == -1) {
+    printf("Too many connections\n");
     return 0;
   }
-  return 1;
+  return 0;
 }
 
 int main(int argc, char* argv[]) {
@@ -85,7 +88,7 @@ int main(int argc, char* argv[]) {
   }
 
   strncpy(user_session.userid, argv[1], MAXNAME-1);
-  if (!connect(&user_session, argv[2], argv[3])) {
+  if (!connect_to_server(&user_session, argv[2], argv[3])) {
     exit(1);
   }
 
@@ -93,7 +96,7 @@ int main(int argc, char* argv[]) {
     exit(1);
   }
 
-  pthread_mutex_init(&user_session.connection_mutex);
+  pthread_mutex_init(&user_session.connection_mutex, NULL);
 
   printf("Connected successfully to server: %d\n", server_response_int);
   create_dir_for(user_session.userid);
