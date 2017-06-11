@@ -12,6 +12,7 @@
 #include "dropboxUtil.h"
 #include "dropboxClient.h"
 #include "dropboxClientCli.h"
+#include "dropboxClientSync.h"
 
 #ifndef MSG_SIZE
 
@@ -72,14 +73,6 @@ int login(SESSION *user_session) {
   if (server_response_byte == -1) {
     printf("Too many connections\n");
     return 0;
-  }
-  return 0;
-}
-
-void *client_sync(void *s_arg) {
-  SESSION *user_session = (SESSION *) s_arg;
-  while (user_session->keep_running) {
-    sleep(5);
   }
   return 0;
 }
