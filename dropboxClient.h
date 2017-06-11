@@ -1,6 +1,7 @@
 #ifndef DROPBOX_CLIENT_HEADER
 #define DROPBOX_CLIENT_HEADER
 #include <pthread.h>
+#include <netinet/in.h>
 
 typedef struct session {
   char userid[MAXNAME];

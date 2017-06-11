@@ -87,13 +87,16 @@ void *client_cli(void *s_arg) {
     command[c_len-1] = '\0';
     printf("`%s` (%d)\n", command, c_len);
   }
+  return 0;
 }
 void *client_sync(void *s_arg) {
   SESSION *user_session = (SESSION *) s_arg;
   while (user_session->keep_running) {
     sleep(5);
   }
+  return 0;
 }
+
 void init_session(SESSION * user_session) {
   pthread_mutex_init(&user_session->connection_mutex, NULL);
   user_session->keep_running = 1;
@@ -105,10 +108,8 @@ void end_session(SESSION * user_session) {
 }
 
 int main(int argc, char* argv[]) {
-  struct stat st = {0};
-  int server_response_int, client_request = 1, rc;
-  char response_buffer[MSG_SIZE], input_buffer[MSG_SIZE], *user_name;
   pthread_t thread_cli, thread_sync;
+  int rc;
   SESSION user_session = {0};
 
   if (argc < 4) {
