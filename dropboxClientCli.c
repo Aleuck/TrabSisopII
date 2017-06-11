@@ -29,6 +29,7 @@ int parse_command(char *command) {
   if (0 == strcmp(command, "upload"  )) return CMD_UPLOAD;
   if (0 == strcmp(command, "download")) return CMD_DOWNLOAD;
   if (0 == strcmp(command, "list"    )) return CMD_LIST;
+  if (0 == strcmp(command, "exit"    )) return CMD_EXIT;
   return CMD_UNDEFINED;
 }
 
@@ -64,6 +65,9 @@ void *client_cli(void *session_arg) {
         break;
       case CMD_LIST:
         printf("l.\n");
+        break;
+      case CMD_EXIT:
+        end_session(user_session);
         break;
       default:
         break;
