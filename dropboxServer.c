@@ -37,8 +37,31 @@ void recieve_file(char *file){
   return;
 }
 
-void send_file(char *file){
+void send_file(int client_socket, FILE_INFO file, char *username){
+  int i = 0, file_handler, sent_size;
+  REQUEST user_request;
 
+
+  char path[100] = "sync_dir_", buffer[SEG_SIZE], filename[MAXNAME];
+  strcat(path,username);
+  strcat(path,"/");
+  strcat(path,file.name);
+
+  fprintf(stderr, "Sending file in path %s\n", path);
+
+  if ((file_handler = fopen(path, "r")) == NULL) {
+        printf("Error sending the file to user: %s \n", username);
+        return;
+    }
+    while ((sent_size = fread(buffer, 1,sizeof(buffer), file_handler)) > 0){
+      if (send(client_socket,buffer,sent_size,0) < sent_size) {
+          printf("Error sending the file to user: %s \n", username);
+          return;
+      }
+      bzero(buffer, SEG_SIZE); // Reseta o buffer
+  }
+
+  fclose(file_handler);
   return;
 }
 
@@ -176,10 +199,11 @@ void *client_handler(void *client_info) {
   int client_device = info->device;
   int message_size;
   char client_message[100];
-  int server_response = 1, client_request = 0, response_buffer;
+  int server_response = 1, response_buffer;
+  REQUEST client_request;
 
   // Now that the client is connected successfully connected execute commands
-  while (client_request != 100) {
+  while (client_request.command != 'a') {
     if (recv(user_list[client_number].devices[client_device], &client_request, sizeof(client_request), 0) == 0) {
       user_list[client_number].logged_in--;
       close(user_list[client_number].devices[client_device]);
@@ -187,16 +211,15 @@ void *client_handler(void *client_info) {
       printf("ended here\n");
       return 0;
     }
-    printf("client_request = %d for client = %s\n", client_request, user_list[client_number].userid);
-    response_buffer = client_request;
-    send(user_list[client_number].devices[client_device], &response_buffer, sizeof(response_buffer), 0);
-    switch (client_request) {
-      case 0:
+    printf("client_request = %c for client = %s\n", client_request.command, user_list[client_number].userid);
+
+    switch (client_request.command) {
+      case '0':
         break;
-      case 1:
-        //send_file()
-        break;
-      case 2:
+      case '1':
+        send_file(user_list[client_number].devices[client_device],client_request.file_info, user_list[client_number].userid);
+        //break;
+      case '2':
         //recieve_file()
         break;
     }
