@@ -18,6 +18,8 @@
 
 #endif
 
+#define MAXINPUT 256
+
 int create_dir_for(char *user_name) {
   struct stat st = {0};
   const char* home_dir = getenv ("HOME");
@@ -53,7 +55,7 @@ int connect_to_server(SESSION *user_session, const char *host, const char *port)
   return 1;
 }
 
-void disconnect(SESSION *user_session) {
+void disconnect_from_server(SESSION *user_session) {
   close(user_session->connection);
 };
 
@@ -74,10 +76,37 @@ int login(SESSION *user_session) {
   }
   return 0;
 }
+void *client_cli(void *s_arg) {
+  SESSION *user_session = (SESSION *) s_arg;
+  char command[MAXINPUT];
+  int c_len;
+  while (user_session->keep_running) {
+    printf(">> ");
+    fgets(command, MAXINPUT, stdin);
+    c_len = strlen(command);
+    command[c_len-1] = '\0';
+    printf("`%s` (%d)\n", command, c_len);
+  }
+}
+void *client_sync(void *s_arg) {
+  SESSION *user_session = (SESSION *) s_arg;
+  while (user_session->keep_running) {
+    sleep(5);
+  }
+}
+void init_session(SESSION * user_session) {
+  pthread_mutex_init(&user_session->connection_mutex, NULL);
+  user_session->keep_running = 1;
+}
+
+void end_session(SESSION * user_session) {
+  // this will signal threads to stop running as soon as they can;
+  user_session->keep_running = 0;
+}
 
 int main(int argc, char* argv[]) {
   struct stat st = {0};
-  int server_response_int, client_request = 1;
+  int server_response_int, client_request = 1, rc;
   char response_buffer[MSG_SIZE], input_buffer[MSG_SIZE], *user_name;
   pthread_t thread_cli, thread_sync;
   SESSION user_session = {0};
@@ -86,6 +115,8 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "Usage: %s <fulano> <host> <port>\n", argv[0]);
     exit(-1);
   }
+
+  init_session(&user_session);
 
   strncpy(user_session.userid, argv[1], MAXNAME-1);
   if (!connect_to_server(&user_session, argv[2], argv[3])) {
@@ -96,11 +127,18 @@ int main(int argc, char* argv[]) {
     exit(1);
   }
 
-  pthread_mutex_init(&user_session.connection_mutex, NULL);
-
-  printf("Connected successfully to server: %d\n", server_response_int);
   create_dir_for(user_session.userid);
 
+  rc = pthread_create(&thread_cli, NULL, client_cli, (void *) &user_session);
+  if (rc != 0) {
+    printf("Couldn't create threads.\n");
+    exit(1);
+  }
+  rc = pthread_create(&thread_sync, NULL, client_sync, (void *) &user_session);
+  if (rc != 0) {
+    printf("Couldn't create threads.\n");
+    exit(1);
+  }
   // while (client_request != 100) {
   //
   //   scanf("%d", &client_request);
@@ -113,6 +151,8 @@ int main(int argc, char* argv[]) {
   //       break;
   //   }
   //}
-  disconnect(&user_session);
+  pthread_join(thread_sync, NULL);
+  pthread_join(thread_cli, NULL);
+  disconnect_from_server(&user_session);
   exit(0);
 }

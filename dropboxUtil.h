@@ -10,6 +10,8 @@
 #define CMD_GET_SYNC_DIR 4
 #define CMD_EXIT         5
 
+#define SEG_SIZE  1250
+
 typedef struct file_info {
   char name[MAXNAME];
   char extension[MAXNAME];
