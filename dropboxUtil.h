@@ -21,4 +21,9 @@ typedef struct file_info {
   int size;
 } FILE_INFO;
 
+typedef struct request {
+  char command;
+  FILEINFO file_info;
+} REQUEST;
+
 #endif /* DROPBOX_UTIL_H */
