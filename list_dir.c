@@ -47,6 +47,11 @@ struct linked_list get_file_list(const char *dir_path) {
 			continue;
 		}
 
+		if (!S_ISREG(statbuf.st_mode)) {
+			/* not a regular file */
+			continue;
+		}
+
 		sprintf(file.last_modified, "%lld", (long long)statbuf.st_mtime);
 		file.size = statbuf.st_size;
 
@@ -57,6 +62,32 @@ struct linked_list get_file_list(const char *dir_path) {
 	free(root);
 	closedir(dp);
 	return list;
+}
+
+struct linked_list need_update(struct linked_list *list1, struct linked_list *list2) {
+	struct linked_list update;
+	ll_init(sizeof(struct file_info), &update);
+
+	struct ll_item *item1 = list1->first;
+
+	while (item1 != NULL) {
+		struct file_info *file2 = ll_getref(item1->key, list2);
+
+		if (file2 == NULL) {
+			/* file not in list 2 */
+			ll_put(item1->key, item1->value, &update);
+		} else {
+			/* file in list 2, but is it updated? */
+			struct file_info *file1 = item1->value;
+			if (atoi(file1->last_modified) > atoi(file2->last_modified)) {
+				ll_put(item1->key, item1->value, &update);
+			}
+		}
+
+		item1 = item1->next;
+	}
+
+	return update;
 }
 
 void frpint_file_list(FILE *stream, struct linked_list *list) {
