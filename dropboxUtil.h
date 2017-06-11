@@ -3,6 +3,7 @@
 
 // Maximum file name with null terminator
 #define MAXNAME 100
+#define MAXFILES 10
 
 #define CMD_UPLOAD       1
 #define CMD_DOWNLOAD     2
