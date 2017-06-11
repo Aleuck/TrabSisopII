@@ -1,24 +1,20 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "user_login.h"
+
 #include "dropboxServer.h"
 #include "dropboxUtil.h"
-#include "user_login.h"
 #include "linked_list.h"
 #include "logging.h"
 
-static struct linked_list logged_users;
-static pthread_mutex_t logged_users_mutex;
+static struct linked_list users;
+static pthread_mutex_t users_mutex;
 
 void die(const char *msg) {
 	flogcritical("%s", msg);
 	exit(1);
 }
-
-struct logged_user {
-	struct client *cli;
-	pthread_mutex_t *dir_mutex;
-};
 
 static struct client *new_client(const char *username) {
 		struct client *new = (struct client *)malloc(sizeof(struct client));
@@ -36,7 +32,7 @@ static struct client *new_client(const char *username) {
 		return new;
 }
 
-void rand_str(char *dest, size_t length) {
+static void rand_str(char *dest, size_t length) {
 	char charset[] = "ABCDEFGH";
 
 	while (length-- > 0) {
@@ -51,103 +47,70 @@ static void receive_username(int sockfd, char username[MAXNAME]) {
 }
 
 void ul_init() {
-	ll_init(sizeof(struct logged_user), &logged_users);
-	if (pthread_mutex_init(&logged_users_mutex, NULL) != 0) {
+	ll_init(sizeof(struct user), &users);
+	if (pthread_mutex_init(&users_mutex, NULL) != 0) {
 		die("ul_init(): mutex_init() failed.");
 	}
 }
 
-void ul_term() {
-	pthread_mutex_lock(&logged_users_mutex);
-
-	struct ll_item *item = logged_users.first;
-	while (item != NULL) {
-		struct client *cli = ((struct logged_user *)item->value)->cli;
-		pthread_mutex_t *mutex = ((struct logged_user *)item->value)->dir_mutex;
-		int i;
-		for (i = 0; i < MAX_LOGIN_COUNT; i++) {
-			if (cli->devices[i] != -1) {
-				int sockfd = cli->devices[i];
-				char username[MAXNAME];
-				strcpy(username, cli->userid);
-
-				pthread_mutex_unlock(&logged_users_mutex);
-				logout_user(sockfd, username);
-				pthread_mutex_lock(&logged_users_mutex);
-			}
-		}
-		free(cli);
-		pthread_mutex_destroy(mutex);
-		free(mutex);
-		ll_del(cli->userid, &logged_users);
-		item = item->next;
-	}
-
-	pthread_mutex_unlock(&logged_users_mutex);
-}
-
-int login_user(int sockfd, char username[MAXNAME], pthread_mutex_t **user_dir_mutex) {
+int login_user(int sockfd, struct user **user) {
+	char username[MAXNAME];
 	receive_username(sockfd, username);
 
-	pthread_mutex_lock(&logged_users_mutex);
+	pthread_mutex_lock(&users_mutex);
 
-	if (logged_users.length >= MAX_CLIENTS) {
+	if (users.length >= MAX_CLIENTS) {
 		floginfo("%s access denied. Too many logged in users.", username);
-		pthread_mutex_unlock(&logged_users_mutex);
+		pthread_mutex_unlock(&users_mutex);
 		return -1;
 	}
 
-	struct logged_user *user = ll_getref(username, &logged_users);
+	*user = (struct user *)ll_getref(username, &users);
 
-	if (user == NULL) {
-		struct logged_user logging_user;
+	if (*user == NULL) {
+		struct user logging_user;
 
 		logging_user.cli = new_client(username);
 
-		logging_user.dir_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
-		if (logging_user.dir_mutex == NULL) {
+		logging_user.cli_mutex = (pthread_mutex_t *)malloc(sizeof(pthread_mutex_t));
+		if (logging_user.cli_mutex == NULL) {
 			die("login_user(): malloc() failed");
 		}
 
-		if (pthread_mutex_init(logging_user.dir_mutex, NULL) != 0) {
+		if (pthread_mutex_init(logging_user.cli_mutex, NULL) != 0) {
 			die("login_user(): mutex_init() failed.");
 		}
 
-		ll_put(username, &logging_user, &logged_users);
-		user = ll_getref(username, &logged_users);
-	} else if (user->cli->logged_in >= MAX_LOGIN_COUNT) {
+		logging_user.num_files = 0;
+
+		ll_put(username, &logging_user, &users);
+		*user = ll_getref(username, &users);
+	} else if ((*user)->cli->logged_in >= MAX_LOGIN_COUNT) {
 		floginfo("%s access denied. Too many simulatneous logins.", username);
-		pthread_mutex_unlock(&logged_users_mutex);
+		pthread_mutex_unlock(&users_mutex);
 		return -1;
 	}
 
-	*user_dir_mutex = user->dir_mutex;
+	pthread_mutex_lock((*user)->cli_mutex);
 	int i;
 	for (i = 0; i < MAX_LOGIN_COUNT; i++) {
-		if (user->cli->devices[i] == -1) {
-			user->cli->devices[i] = sockfd;
+		if ((*user)->cli->devices[i] == -1) {
+			(*user)->cli->devices[i] = sockfd;
 			break;
 		}
 	}
-	user->cli->logged_in++;
+	(*user)->cli->logged_in++;
+	pthread_mutex_unlock((*user)->cli_mutex);
 
 	floginfo("User %s logged in at %d.", username, sockfd);
-
-	pthread_mutex_unlock(&logged_users_mutex);
+	pthread_mutex_unlock(&users_mutex);
 
 	return 0;
 }
 
-void logout_user(int sockfd, const char *username) {
-	pthread_mutex_lock(&logged_users_mutex);
-
-	struct logged_user *user = ll_getref(username, &logged_users);
-
-	if (user == NULL) {
-		flogwarning("Tried to logout %s at %d, and the user wasn't logged in.", username, sockfd);
-		pthread_mutex_unlock(&logged_users_mutex);
-		return;
-	}
+void logout_user(int sockfd, struct user *user) {
+	pthread_mutex_lock(&users_mutex);
+	pthread_mutex_lock(user->cli_mutex);
 
 	int i = 0;
 	while (i < MAX_LOGIN_COUNT && sockfd != user->cli->devices[i]) {
@@ -155,17 +118,19 @@ void logout_user(int sockfd, const char *username) {
 	}
 
 	if (i == MAX_LOGIN_COUNT) {
-		flogwarning("Tried to logout %s at %d, and the user wasn't logged in.", username, sockfd);
-		pthread_mutex_unlock(&logged_users_mutex);
+		flogwarning("Tried to logout %s at %d, and the user wasn't logged in.", user->cli->userid, sockfd);
+		pthread_mutex_unlock(user->cli_mutex);
+		pthread_mutex_unlock(&users_mutex);
 		return;
 	}
 
 	user->cli->devices[i] = -1;
 	user->cli->logged_in--;
 
-	pthread_mutex_unlock(&logged_users_mutex);
+	floginfo("User %s at %d logged out.", user->cli->userid, sockfd);
 
-	floginfo("User %s at %d logged out.", username, sockfd);
+	pthread_mutex_unlock(user->cli_mutex);
+	pthread_mutex_unlock(&users_mutex);
 }
 
 static void fprint_client(FILE *stream, struct client *cli) {
@@ -180,18 +145,18 @@ static void fprint_client(FILE *stream, struct client *cli) {
 }
 
 void fprint_logged_users(FILE *stream, char detailed) {
-	pthread_mutex_lock(&logged_users_mutex);
+	pthread_mutex_lock(&users_mutex);
 
 	if (!detailed) {
-		ll_fprint(stream, &logged_users);
+		ll_fprint(stream, &users);
 	} else {
-		struct ll_item *item = logged_users.first;
+		struct ll_item *item = users.first;
 		while (item != NULL) {
-			fprint_client(stream, ((struct logged_user *)item->value)->cli);
+			fprint_client(stream, ((struct user *)item->value)->cli);
 			fprintf(stderr, "\n");
 			item = item->next;
 		}
 	}
 
-	pthread_mutex_unlock(&logged_users_mutex);
+	pthread_mutex_unlock(&users_mutex);
 }

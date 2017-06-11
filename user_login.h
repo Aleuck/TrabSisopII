@@ -6,19 +6,24 @@
 
 #include "dropboxUtil.h"
 
-/* Init and terminate user login module. */
+struct user {
+	struct client *cli;
+	int num_files;
+	pthread_mutex_t *cli_mutex;
+};
+
+/* Init user login module. */
 void ul_init();
-void ul_term();
 
 /* Log in user at `sockfd`, put the username in `username` and the user's
  * directory mutex in `mutex`.
  *
  * Return 0 if successful, or -1 if login was denied. */
-int login_user(int sockfd, char username[MAXNAME], pthread_mutex_t **mutex);
+int login_user(int sockfd, struct user **user);
 
 /* Log out user with `username` and free resources associated with that
  * user if he's not logged in from any other devices. */
-void logout_user(int sockfd, const char *username);
+void logout_user(int sockfd, struct user *user);
 
 void fprint_logged_users(FILE *stream, char detailed);
 
