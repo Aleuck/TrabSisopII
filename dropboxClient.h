@@ -11,4 +11,7 @@ typedef struct session {
   int keep_running;
 } SESSION;
 
+void send_file(SESSION *user_session, char *filename);
+void get_file(SESSION *user_session, char *filename);
+
 #endif

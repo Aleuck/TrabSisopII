@@ -11,14 +11,13 @@
 #include <pthread.h>
 #include "dropboxUtil.h"
 #include "dropboxClient.h"
+#include "dropboxClientCli.h"
 
 #ifndef MSG_SIZE
 
 #define MSG_SIZE 100
 
 #endif
-
-#define MAXINPUT 256
 
 int create_dir_for(char *user_name) {
   struct stat st = {0};
@@ -76,19 +75,7 @@ int login(SESSION *user_session) {
   }
   return 0;
 }
-void *client_cli(void *s_arg) {
-  SESSION *user_session = (SESSION *) s_arg;
-  char command[MAXINPUT];
-  int c_len;
-  while (user_session->keep_running) {
-    printf(">> ");
-    fgets(command, MAXINPUT, stdin);
-    c_len = strlen(command);
-    command[c_len-1] = '\0';
-    printf("`%s` (%d)\n", command, c_len);
-  }
-  return 0;
-}
+
 void *client_sync(void *s_arg) {
   SESSION *user_session = (SESSION *) s_arg;
   while (user_session->keep_running) {
@@ -105,6 +92,11 @@ void init_session(SESSION * user_session) {
 void end_session(SESSION * user_session) {
   // this will signal threads to stop running as soon as they can;
   user_session->keep_running = 0;
+}
+
+void send_file(SESSION *user_session, char *filename) {
+}
+void get_file(SESSION *user_session, char *filename) {
 }
 
 int main(int argc, char* argv[]) {

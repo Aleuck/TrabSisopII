@@ -10,6 +10,7 @@
 #define CMD_LIST         3
 #define CMD_GET_SYNC_DIR 4
 #define CMD_EXIT         5
+#define CMD_UNDEFINED   -1
 
 #define SEG_SIZE  1250
 
