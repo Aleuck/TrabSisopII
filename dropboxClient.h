@@ -7,6 +7,7 @@ typedef struct session {
   struct sockaddr_in server;
   int connection;    // tcp socket
   pthread_mutex_t connection_mutex;
+  int keep_running;
 } SESSION;
 
 #endif
