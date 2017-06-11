@@ -14,4 +14,4 @@ struct client {
   int logged_in;
 };
 
-#endif /* ifndef DROPBOX_SERVER_H */
+#endif /* DROPBOX_SERVER_H */
