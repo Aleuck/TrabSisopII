@@ -8,13 +8,12 @@
 #define N_THREADS 10
 
 void *same_login(void *args) {
-	pthread_mutex_t *user_dir_mutex;
 	int sockfd = rand();
-	char username[MAXNAME];
+	struct user *user;
 	usleep(rand()%100000);
-	if (login_user(sockfd, username, &user_dir_mutex) == 0) {
+	if (login_user(sockfd, &user) == 0) {
 		usleep(rand()%100000);
-		logout_user(sockfd, username);
+		logout_user(sockfd, user);
 	}
 
 	return NULL;
@@ -22,15 +21,14 @@ void *same_login(void *args) {
 
 int main(int argc, char *argv[])
 {
-	char username[MAXNAME];
-	pthread_mutex_t *user_dir_mutex;
+	struct user *user;
 
 	ul_init();
 
 	int i;
 	for (i = 0; i < MAX_CLIENTS; i++) {
-		if (login_user(1, username, &user_dir_mutex) == 0) {
-			logout_user(1, username);
+		if (login_user(1, &user) == 0) {
+			logout_user(1, user);
 		}
 	}
 	fprintf(stderr, "\nUsers logged in:\n");
@@ -53,9 +51,6 @@ int main(int argc, char *argv[])
 
 	fprintf(stderr, "\nUsers logged in:\n");
 	fprint_logged_users(stderr, 1);
-
-	fprintf(stderr, "\nTerminating...\n");
-	ul_term();
 
 	return 0;
 }
