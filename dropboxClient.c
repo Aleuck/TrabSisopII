@@ -139,14 +139,12 @@ void get_file(SESSION *user_session, char *filename) {
   REQUEST client_request;
   ssize_t received_size;
   FILE *file_handler;
-  const char* home_dir = getenv ("HOME");
 
-  sprintf (path, "%s/sync_dir_%s/%s",home_dir, user_session->userid,filename);
   strcpy(client_request.file_info.name, filename);
   client_request.command = CMD_DOWNLOAD;
 
   send(user_session->connection,(char *)&client_request,sizeof(client_request),0);
-  file_handler = fopen(path,"w");
+  file_handler = fopen(filename,"w");
   bzero(buffer,SEG_SIZE);
   while ((received_size = recv(user_session->connection, buffer, sizeof(buffer), 0)) > 0){
       fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
