@@ -20,7 +20,7 @@ all: dropboxServer dropboxClient $(LIBDIR)/dropboxUtil.so
 dropboxServer: logging.o user_login.o linked_list.o dropboxServer.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
-dropboxClient: dropboxClient.o dropboxClientCli.o dropboxClientSync.o
+dropboxClient: logging.o dropboxClient.o dropboxClientCli.o dropboxClientSync.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 $(LIBDIR)/dropboxUtil.so: dropboxUtil.o
