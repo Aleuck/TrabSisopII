@@ -15,6 +15,7 @@
 #include "dropboxClient.h"
 #include "dropboxClientCli.h"
 #include "dropboxClientSync.h"
+#include "logging.h"
 
 #ifndef MSG_SIZE
 
@@ -185,7 +186,7 @@ struct linked_list get_file_list(SESSION *user_session) {
 		else if (recv_len == 0) goto socket_closed;
 
 		deserialize_file_info(&info, buf);
-		logdebug("get_file_list(): received file_info %s", info.name);
+		flogdebug("get_file_list(): received file_info %s", info.name);
 		ll_put(info.name, &info, &list);
 	}
 
