@@ -81,7 +81,7 @@ void *client_sync(void *session_arg) {
       struct file_info* info;
       info = (struct file_info *)item->value;
       flogdebug("should download `%s`",info->name);
-      get_file(user_session, info->name);
+      get_file(user_session, info->name, 1);
       item = item->next;
     }
     ll_term(&update_list);

@@ -63,7 +63,7 @@ void *client_cli(void *session_arg) {
           continue;
         }
         printf("get_file: %s\n", filepath);
-        get_file(user_session, filepath);
+        get_file(user_session, filepath, 0);
         break;
       case CMD_LIST:;
         struct linked_list list = request_file_list(user_session);

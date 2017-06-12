@@ -165,15 +165,22 @@ void send_file(SESSION *user_session, char *file_path) {
   return;
 }
 
-void get_file(SESSION *user_session, char *filename) {
+void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   char buffer[SEG_SIZE];
+  char path[256];
   REQUEST client_request;
   ssize_t received_size;
   FILE *file_handler;
   pthread_mutex_lock(&(user_session->connection_mutex));
   strcpy(client_request.file_info.name, filename);
   client_request.command = CMD_DOWNLOAD;
-  file_handler = fopen(filename,"w");
+  if (to_sync_folder) {
+    const char* home_dir = getenv ("HOME");
+  	sprintf (path, "%s/sync_dir_%s/%s",home_dir,user_session->userid,filename);
+  } else {
+    strcpy(path, filename);
+  }
+  file_handler = fopen(path,"w");
   if (file_handler == NULL) {
     logerror("(get) Could not open file.");
   } else {
