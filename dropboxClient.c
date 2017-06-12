@@ -61,12 +61,17 @@ void disconnect_from_server(SESSION *user_session) {
 int login(SESSION *user_session) {
   char server_response_byte = 0;
   int size_received;
+  fprintf(stderr, "chegou\n");
   send(user_session->connection, user_session->userid, MAXNAME, 0);
+  fprintf(stderr, "chegou\n");
+
   if ((size_received = recv(user_session->connection, &server_response_byte, sizeof(char), 0)) == 0){
+    fprintf(stderr, "size_received : %d", size_received);
     printf("Server cap reached\n");
     return 0;
   }
-  fprintf(stderr, "size_received : %d, size of buffer: %d\n",size_received, sizeof(char) );
+  fprintf(stderr, "size_received : %d", size_received);
+  fprintf(stderr, "size_received : %d, size of buffer: %d\n",size_received, server_response_byte );
   if (server_response_byte == 1) {
     printf("Login successful.\n");
     return 1;
