@@ -7,16 +7,13 @@
 #include "dropboxClient.h"
 #include "dropboxClientSync.h"
 #include "logging.h"
+#include "list_dir.h"
 
 /* size of the event structure, not counting name */
 #define EVENT_SIZE  (sizeof (struct inotify_event))
 
 /* reasonable guess as to size of 1024 events */
 #define BUF_LEN        (1024 * (EVENT_SIZE + 16))
-static void
-handle_events(int fd, int *wd, int argc, char* argv[]) {
-
-}
 
 void *client_sync(void *session_arg) {
   SESSION *user_session = (SESSION *) session_arg;
@@ -27,7 +24,7 @@ void *client_sync(void *session_arg) {
   int fd, wd;
   int len, i = 0;
   struct inotify_event *event;
-
+  struct linked_list filelist_server, update_list;
   // Initialize inotify
   fd = inotify_init1(IN_NONBLOCK);
   if (fd < 0) {
@@ -77,6 +74,18 @@ void *client_sync(void *session_arg) {
         i += EVENT_SIZE + event->len;
       }
     }
+    filelist_server = request_file_list(user_session);
+    update_list = need_update(&filelist_server, &user_session->files);
+    struct ll_item *item = update_list.first;
+    while (item != NULL) {
+      struct file_info* info;
+      info = (struct file_info *)item->value;
+      flogdebug("should download `%s`",info->name);
+      get_file(user_session, info->name);
+      item = item->next;
+    }
+    ll_term(&update_list);
+    ll_term(&filelist_server);
     sleep(3);
   }
   return 0;

@@ -17,10 +17,10 @@ OBJ = $(SRC:.c=.o)
 
 all: dropboxServer dropboxClient
 
-dropboxServer: user_login.o linked_list.o logging.o dropboxUtil.o dropboxServer.o
+dropboxServer: linked_list.o list_dir.o user_login.o logging.o dropboxUtil.o dropboxServer.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
-dropboxClient: dropboxClientSync.o user_login.o linked_list.o logging.o dropboxUtil.o dropboxClient.o dropboxClientCli.o
+dropboxClient: linked_list.o list_dir.o dropboxClientSync.o logging.o dropboxUtil.o dropboxClient.o dropboxClientCli.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 %.o: %.c

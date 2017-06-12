@@ -2,10 +2,10 @@
 #define DROPBOX_UTIL_H
 
 #include <stdio.h>
+#include <arpa/inet.h>
 
 // Maximum file name with null terminator
 #define MAXNAME 100
-#define MAXFILES 10
 
 #define CMD_UPLOAD       1
 #define CMD_DOWNLOAD     2
@@ -13,6 +13,9 @@
 #define CMD_GET_SYNC_DIR 4
 #define CMD_EXIT         5
 #define CMD_UNDEFINED   -1
+
+#define CMD_ACCEPT 1
+#define CMD_DECLINE 2
 
 #define SEG_SIZE  1250
 
@@ -22,7 +25,7 @@ typedef struct file_info {
   char name[MAXNAME];
   char extension[MAXNAME];
   char last_modified[MAXNAME];
-  int size;
+  uint32_t size;
 } FILE_INFO;
 
 typedef struct request {

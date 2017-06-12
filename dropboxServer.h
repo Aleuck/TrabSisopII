@@ -2,6 +2,7 @@
 #define DROPBOX_SERVER_H
 
 #include "dropboxUtil.h"
+#include "linked_list.h"
 
 #define MAX_LOGIN_COUNT 2
 #define MAXFILES 100
@@ -10,7 +11,8 @@
 struct client {
   int devices[2];
   char userid[MAXNAME];
-  struct file_info files[MAXFILES];
+  //struct file_info files[MAXFILES];
+  struct linked_list files;
   int logged_in;
 };
 

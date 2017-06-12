@@ -11,6 +11,7 @@
 #include <pthread.h>
 
 #include "linked_list.h"
+#include "list_dir.h"
 #include "dropboxUtil.h"
 #include "dropboxClient.h"
 #include "dropboxClientCli.h"
@@ -97,68 +98,101 @@ void end_session(SESSION * user_session) {
   user_session->keep_running = 0;
 }
 
-void send_file(SESSION *user_session, char *filename) {
-  char buffer[SEG_SIZE], name_aux[100];
+void send_file(SESSION *user_session, char *file_path) {
+  char buffer[SEG_SIZE], name_aux[100], response;
   REQUEST client_request;
-  ssize_t sent_size, aux_print;
+  int filesize = 0;
+  int total_sent = 0;
+  ssize_t send_size, aux_print;
   FILE *file_handler;
   FILE_INFO file_to_send;
   const char s[2] = "/";
   char *token;
-  strcpy(name_aux, filename);
-  fprintf(stderr, "%s\n", name_aux);
+  pthread_mutex_lock(&(user_session->connection_mutex));
+  strcpy(name_aux, file_path);
+  flogdebug("%s\n", name_aux);
   token = strtok(name_aux, s);
-   while( token != NULL )
-   {
-      strcpy(file_to_send.name,token);
-      token = strtok(NULL, s);
-
-   }
-  fprintf(stderr, "%s\n", file_to_send.name);
+  while( token != NULL ) {
+    strcpy(file_to_send.name,token);
+    token = strtok(NULL, s);
+  }
+  flogdebug("%s\n", file_to_send.name);
   client_request.command = CMD_UPLOAD;
   client_request.file_info = file_to_send;
-  send(user_session->connection,(char *)&client_request,sizeof(client_request),0);
-  if ((file_handler = fopen(filename, "r")) == NULL) {
-        printf("Error sending the file to server\n");
-        return;
-    }
-
-    while ((sent_size = fread(buffer, 1,sizeof(buffer), file_handler)) > 0){
-      if ((aux_print = send(user_session->connection,buffer,sent_size,0)) < sent_size) {
-          fprintf(stderr,"Error sending the file to server: %d \n", aux_print);
-          return;
+  file_handler = fopen(file_path, "r");
+  if (file_handler == NULL) {
+    logerror("(send) Could not open file.");
+  } else {
+    // get file size
+    fseek(file_handler, 0L, SEEK_END);
+    filesize = ftell(file_handler);
+    flogdebug("send file of size %d.", filesize);
+    rewind(file_handler);
+    // send request to send file
+    client_request.file_info.size = htonl(filesize);
+    send(user_session->connection,(char *)&client_request,sizeof(client_request),0);
+    // get response
+    recv(user_session->connection, &response, sizeof(response), 0);
+    if (response != CMD_ACCEPT) {
+      // server refused
+      flogwarning("server refused file.");
+    } else {
+      // server accepted
+      while (total_sent < (filesize - (int) sizeof(buffer))) {
+        send_size = fread(buffer, 1, sizeof(buffer), file_handler);
+        aux_print = send(user_session->connection, buffer, send_size, 0);
+        if (aux_print == -1) {
+          //TODO: error
+          logerror("couldn't send file completely.");
+          end_session(user_session);
+          exit(-1);
+        }
+        total_sent += aux_print;
+        bzero(buffer, SEG_SIZE); // Reseta o buffer
       }
-      //fprintf(stderr, "send result : %d\n",aux_print);
-      bzero(buffer, SEG_SIZE); // Reseta o buffer
+      send_size = fread(buffer, 1, filesize - total_sent, file_handler);
+      if (send_size != filesize - total_sent)
+        logwarning("File size does not match, did it change during transfer?");
+      aux_print = send(user_session->connection, buffer, filesize - total_sent, 0);
+      send_size += aux_print;
+      if (send_size == filesize)
+        logdebug("sent size matches file size.");
+      logdebug("finished sending to server.");
+    }
+    fclose(file_handler);
   }
-  //fprintf(stderr, "send finished to server\n");
-  fclose(file_handler);
+  pthread_mutex_unlock(&(user_session->connection_mutex));
   return;
-  }
+}
+
 void get_file(SESSION *user_session, char *filename) {
-  char buffer[SEG_SIZE], path[100];
+  char buffer[SEG_SIZE];
   REQUEST client_request;
   ssize_t received_size;
   FILE *file_handler;
-
+  pthread_mutex_lock(&(user_session->connection_mutex));
   strcpy(client_request.file_info.name, filename);
   client_request.command = CMD_DOWNLOAD;
-
-  send(user_session->connection,(char *)&client_request,sizeof(client_request),0);
   file_handler = fopen(filename,"w");
-  bzero(buffer,SEG_SIZE);
-  while ((received_size = recv(user_session->connection, buffer, sizeof(buffer), 0)) > 0){
+  if (file_handler == NULL) {
+    logerror("(get) Could not open file.");
+  } else {
+    send(user_session->connection,(char *)&client_request,sizeof(client_request),0);
+    bzero(buffer,SEG_SIZE);
+    while ((received_size = recv(user_session->connection, buffer, sizeof(buffer), 0)) > 0){
       fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
       bzero(buffer, SEG_SIZE);
       if(received_size < SEG_SIZE){ // Se o pacote que veio, for menor que o tamanho total, eh porque o arquivo acabou
-          fprintf(stderr, "arquivo recebido: %d\n", received_size);
-          fclose(file_handler);
-          return;
-        }
+        flogdebug("arquivo recebido: %d\n", (int) received_size);
+        break;
       }
+    }
+    fclose(file_handler);
+  }
+  pthread_mutex_unlock(&(user_session->connection_mutex));
 }
 
-struct linked_list get_file_list(SESSION *user_session) {
+struct linked_list request_file_list(SESSION *user_session) {
 	struct linked_list list;
 	ll_init(sizeof(struct file_info), &list);
 	pthread_mutex_lock(&(user_session->connection_mutex));
@@ -186,19 +220,19 @@ struct linked_list get_file_list(SESSION *user_session) {
 		else if (recv_len == 0) goto socket_closed;
 
 		deserialize_file_info(&info, buf);
-		flogdebug("get_file_list(): received file_info %s", info.name);
+		flogdebug("request_file_list(): received file_info %s", info.name);
 		ll_put(info.name, &info, &list);
 	}
 
 	return list;
 
 socket_error:
-	logerror("get_file_list(): socket error");
+	logerror("request_file_list(): socket error");
 	pthread_mutex_unlock(&(user_session->connection_mutex));
 	return list;
 
 socket_closed:
-	logerror("get_file_list(): socket closed");
+	logerror("request_file_list(): socket closed");
 	pthread_mutex_unlock(&(user_session->connection_mutex));
 	return list;
 }

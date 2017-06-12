@@ -1,5 +1,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -12,6 +13,7 @@
 #include "dropboxServer.h"
 #include "logging.h"
 #include "user_login.h"
+#include "list_dir.h"
 
 #define QUEUE_SIZE 5
 #define  get_sync_dir_OPTION  0
@@ -26,48 +28,49 @@ struct handler_info {
 
 struct client user_list[MAXUSER];
 
-void *client_handler(void *client_id);
-
 void sync_server(){
 
   return;
 }
 
 void receive_file(int client_socket, FILE_INFO file, struct user *user){
-
-//add to user files
-
-//
-
-  char buffer[SEG_SIZE], path[100];
-  REQUEST client_request;
+  char buffer[SEG_SIZE], path[256], response;
   ssize_t received_size;
   FILE *file_handler;
   const char* home_dir = getenv ("HOME");
+  pthread_mutex_lock(user->cli_mutex);
+  if (user->cli->files.length < MAXFILES) {
+    response = CMD_ACCEPT;
+    send(client_socket,&response,sizeof(response),0);
 
-  sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, user->cli->userid, file.name);
-  fprintf(stderr, "%s\n", path);
-  file_handler = fopen(path,"w");
-  bzero(buffer,SEG_SIZE);
-  while ((received_size = recv(client_socket, buffer, sizeof(buffer), 0)) > 0){
+    sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, user->cli->userid, file.name);
+    fprintf(stderr, "%s\n", path);
+    file_handler = fopen(path,"w");
+    bzero(buffer,SEG_SIZE);
+
+    while ((received_size = recv(client_socket, buffer, sizeof(buffer), 0)) > 0){
       fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
       bzero(buffer, SEG_SIZE);
       if(received_size < SEG_SIZE){ // Se o pacote que veio, for menor que o tamanho total, eh porque o arquivo acabou
-          fprintf(stderr, "arquivo recebido: %d\n", received_size);
-          fclose(file_handler);
-          return;
-        }
+        fprintf(stderr, "arquivo recebido: %d\n", (int) received_size);
+        break;
       }
+    }
+    fclose(file_handler);
+  } else {
+    response = CMD_DECLINE;
+    send(client_socket,&response,sizeof(response),0);
+  }
+  pthread_mutex_unlock(user->cli_mutex);
 }
 
 void send_file(int client_socket, FILE_INFO file, struct user *user){
-  int i = 0,  sent_size, aux_print;
+  int sent_size, aux_print;
   FILE *file_handler;
-  REQUEST user_request;
   const char* home_dir = getenv ("HOME");
-  char path[100], buffer[SEG_SIZE], filename[MAXNAME];
+  char path[256], buffer[SEG_SIZE];
 
-  sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, user->cli->userid,file.name);
+  sprintf (path, "%s/sisopBox/sync_dir_%s/%s", home_dir, user->cli->userid,file.name);
 
   fprintf(stderr, "Sending file %s\n", path);
   if ((file_handler = fopen(path, "r")) == NULL) {
@@ -88,8 +91,27 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
   return;
 }
 
+void send_file_list(int client_socket, struct user *user) {
+  struct ll_item *item;
+  char buf[FILE_INFO_BUFLEN];
+  FILE_INFO *info;
+  uint32_t uintbuf;
+  pthread_mutex_lock(user->cli_mutex);
+  uintbuf = htonl(user->cli->files.length);
+  // send num files
+  send(client_socket, (char *)&uintbuf, sizeof(uintbuf), 0);
+  item = user->cli->files.first;
+  while (item != NULL) {
+    info = (struct file_info *) item->value;
+    serialize_file_info(info, buf);
+    send(client_socket, buf, FILE_INFO_BUFLEN, 0);
+    item = item->next;
+  }
+  pthread_mutex_unlock(user->cli_mutex);
+}
+
 int isLoggedIn(char *user_name) {
-  int i, count = 0;
+  int i;
   for (i = 0; i < MAXUSER; i++) {
     if (strcmp(user_name,user_list[i].userid) == 0) {
       return i;
@@ -112,20 +134,6 @@ int create_server_dir() {
   return 0;
 }
 
-int create_dir_for(char *user_name) {
-  struct stat st = {0};
-  const char* home_dir = getenv ("HOME");
-  char path [256];
-  //printf("user name recived = %s\n",user_name);
-  sprintf (path, "%s/sisopBox/sync_dir_%s",home_dir,user_name);
-
-  if (stat(path, &st) == -1) {
-    mkdir(path, 07777);
-    return 1;
-  }
-
-  return 0;
-}
 int get_socket(int port){
   int server_sock;
   struct sockaddr_in server_addr;
@@ -157,7 +165,6 @@ int get_socket(int port){
 int connect_to_client(int server_sock){
   int client_sock;
   struct sockaddr_in client_info;
-  struct sockaddr_storage size;
   socklen_t sock_size;
 
   sock_size = sizeof(struct sockaddr_in);
@@ -177,6 +184,7 @@ void procces_command(struct user *current_user, REQUEST user_request, int client
       receive_file(client_socket, user_request.file_info, current_user);
       break;
     case CMD_LIST:
+      send_file_list(client_socket, current_user);
       break;
   }
 }
@@ -189,24 +197,22 @@ void *treat_client(void *client_sock){
 
   if(login_user(socket, &new_user) < 0){
     close(socket);
-    return -1;
+    return (void*) -1;
   }
-  create_dir_for(new_user->cli->userid);
   response_buffer = 1;
   sent = send(socket, &response_buffer,sizeof(char),0);
   fprintf(stderr, "sent: %d\n", sent);
   while(recv(socket, &client_request, sizeof(REQUEST),0) != 0){
     procces_command(new_user, client_request, socket);
   }
-  logout_user(socket ,&new_user);
+  logout_user(socket ,new_user);
   close(socket);
+  return 0;
 }
 
 
 int main(int argc, char* argv[]) {
-
-  int server_sock, client_sock, sock_size, *aux_sock, temp_sock, aux_index, *index;
-  int client_count = 0;
+  int server_sock, client_sock;
   ul_init();
   create_server_dir();
 
@@ -243,49 +249,4 @@ int main(int argc, char* argv[]) {
     return 1;
   }
   exit(0);
-}
-
-void *client_handler(void *client_info) {
-  struct handler_info *info = client_info;
-  printf("%d\n", info -> index);
-  printf("%d\n", info -> device);
-  int client_number = info->index;
-  int client_device = info->device;
-  int message_size;
-  char client_message[100];
-  int server_response = 1, response_buffer;
-  REQUEST client_request;
-
-  // Now that the client is connected successfully connected execute commands
-  while (client_request.command != 'a') {
-    if (recv(user_list[client_number].devices[client_device], &client_request, sizeof(client_request), 0) == 0) {
-      user_list[client_number].logged_in--;
-      close(user_list[client_number].devices[client_device]);
-      user_list[client_number].devices[client_device] = 0;
-      printf("ended here\n");
-      return 0;
-    }
-    printf("client_request = %d for client = %s\n", client_request.command, user_list[client_number].userid);
-
-    switch (client_request.command) {
-      case 0:
-        break;
-      case CMD_UPLOAD:
-        fprintf(stderr ,"chegou\n");
-        receive_file(user_list[client_number].devices[client_device],client_request.file_info, user_list[client_number].userid);
-        break;
-
-      case 2:
-        fprintf(stderr ,"chegou\n");
-        send_file(user_list[client_number].devices[client_device],client_request.file_info, user_list[client_number].userid);
-      //break;
-        break;
-    }
-  }
-  printf("Client connection lost for client %s\n", user_list[client_number].userid);
-  user_list[client_number].logged_in--;
-
-  close(user_list[client_number].devices[client_device]);
-  user_list[client_number].devices[client_device] = 0;
-  return 0;
 }

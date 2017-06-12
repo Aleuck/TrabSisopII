@@ -36,7 +36,7 @@ struct linked_list get_file_list(const char *dir_path) {
 	char *full_path = (char *)malloc(strlen(root) + MAXNAME + 1);
 	struct file_info file;
 	struct stat statbuf;
-	while (entry = readdir(dp)) {
+	while ((entry = readdir(dp))) {
 		strcpy(file.name, entry->d_name);
 		strcpy(file.extension, "\0");
 

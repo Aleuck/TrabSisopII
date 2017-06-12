@@ -1,10 +1,13 @@
 #include <string.h>
 #include <stdlib.h>
-
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include "user_login.h"
 #include "dropboxServer.h"
 #include "dropboxUtil.h"
-#include "linked_list.h"
+#include "list_dir.h"
 #include "logging.h"
 
 static struct linked_list users;
@@ -55,9 +58,25 @@ void ul_init() {
 		die("ul_init(): mutex_init() failed.");
 	}
 }
+void get_server_dir_path_for(const char *username, char *path) {
+	const char* home_dir = getenv ("HOME");
+	sprintf (path, "%s/sisopBox/sync_dir_%s",home_dir,username);
+}
+int create_server_dir_for(const char *username) {
+  struct stat st = {0};
+  char path [256];
+	get_server_dir_path_for(username, path);
+
+  if (stat(path, &st) == -1) {
+    mkdir(path, 07777);
+    return 1;
+  }
+  return 0;
+}
 
 int login_user(int sockfd, struct user **user) {
 	char username[MAXNAME];
+	char path[256];
 	receive_username(sockfd, username);
 	pthread_mutex_lock(&users_mutex);
 
@@ -84,6 +103,11 @@ int login_user(int sockfd, struct user **user) {
 
 		ll_put(username, &logging_user, &users);
 		*user = ll_getref(username, &users);
+		create_server_dir_for((*user)->cli->userid);
+		ll_init(sizeof(FILE_INFO), &(*user)->cli->files);
+		get_server_dir_path_for(username, path);
+		(*user)->cli->files = get_file_list(path);
+		frpint_file_list(stderr,&(*user)->cli->files);
 	} else if ((*user)->cli->logged_in >= MAX_LOGIN_COUNT) {
 		floginfo("%s access denied. Too many simulatneous logins.", username);
 		pthread_mutex_unlock(&users_mutex);
