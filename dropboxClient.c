@@ -236,6 +236,7 @@ struct linked_list request_file_list(SESSION *user_session) {
 		ll_put(info.name, &info, &list);
 	}
 
+  pthread_mutex_unlock(&(user_session->connection_mutex));
 	return list;
 
 socket_error:
