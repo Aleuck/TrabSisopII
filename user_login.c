@@ -2,7 +2,6 @@
 #include <stdlib.h>
 
 #include "user_login.h"
-
 #include "dropboxServer.h"
 #include "dropboxUtil.h"
 #include "linked_list.h"
@@ -43,7 +42,11 @@ static void rand_str(char *dest, size_t length) {
 }
 
 static void receive_username(int sockfd, char username[MAXNAME]) {
-	rand_str(username, 1);
+	char new_username[MAXNAME];
+	if(recv(sockfd, new_username, MAXNAME, 0) == 0){
+	}
+	strcpy(username, new_username);
+
 }
 
 void ul_init() {
@@ -56,7 +59,6 @@ void ul_init() {
 int login_user(int sockfd, struct user **user) {
 	char username[MAXNAME];
 	receive_username(sockfd, username);
-
 	pthread_mutex_lock(&users_mutex);
 
 	if (users.length >= MAX_CLIENTS) {
@@ -64,9 +66,7 @@ int login_user(int sockfd, struct user **user) {
 		pthread_mutex_unlock(&users_mutex);
 		return -1;
 	}
-
 	*user = (struct user *)ll_getref(username, &users);
-
 	if (*user == NULL) {
 		struct user logging_user;
 
@@ -80,7 +80,6 @@ int login_user(int sockfd, struct user **user) {
 		if (pthread_mutex_init(logging_user.cli_mutex, NULL) != 0) {
 			die("login_user(): mutex_init() failed.");
 		}
-
 		logging_user.num_files = 0;
 
 		ll_put(username, &logging_user, &users);
@@ -91,7 +90,9 @@ int login_user(int sockfd, struct user **user) {
 		return -1;
 	}
 
+
 	pthread_mutex_lock((*user)->cli_mutex);
+
 	int i;
 	for (i = 0; i < MAX_LOGIN_COUNT; i++) {
 		if ((*user)->cli->devices[i] == -1) {
@@ -101,7 +102,6 @@ int login_user(int sockfd, struct user **user) {
 	}
 	(*user)->cli->logged_in++;
 	pthread_mutex_unlock((*user)->cli_mutex);
-
 	floginfo("User %s logged in at %d.", username, sockfd);
 	pthread_mutex_unlock(&users_mutex);
 

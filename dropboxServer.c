@@ -10,9 +10,10 @@
 #include <errno.h>
 #include "dropboxUtil.h"
 #include "dropboxServer.h"
-
 #include "logging.h"
+#include "user_login.h"
 
+#define QUEUE_SIZE 5
 #define  get_sync_dir_OPTION  0
 #define  send_file_OPTION 1
 #define  recive_file_OPTION 2
@@ -126,12 +127,63 @@ int create_dir_for(char *user_name) {
 
   return 0;
 }
+int get_socket(int port){
+  int server_sock;
+  struct sockaddr_in server_addr;
+  socklen_t sock_size;
 
+  sock_size = sizeof(struct sockaddr_in);
+  memset((char *) &server_addr, 0, sock_size);
+
+  // create TCP socket
+  server_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+  if (server_sock < 0) {
+    fprintf(stderr, "Error: Could not create socket.\n");
+    return -1;
+  }
+
+  server_addr.sin_addr.s_addr = INADDR_ANY;
+  server_addr.sin_port = htons(port);
+  server_addr.sin_family = AF_INET;
+
+  if (bind(server_sock, (struct sockaddr *)&server_addr, sock_size) < 0) {
+    fprintf(stderr, "Error: Could not bind socket.\n");
+    return -1;
+  }
+  if(listen(server_sock , QUEUE_SIZE) < 0)
+    return -1;
+  return server_sock;
+}
+
+int connect_to_client(int server_sock){
+  int client_sock;
+  struct sockaddr_in client_info;
+  struct sockaddr_storage size;
+  socklen_t sock_size;
+
+  sock_size = sizeof(struct sockaddr_in);
+  memset((char *) &client_info, 0, sock_size);
+
+  if((client_sock = accept(server_sock,(struct sockaddr *)&client_info, &sock_size)) < 0){
+    return -1;
+  }
+  return client_sock;
+}
+
+void *treat_client(void *client_sock){
+  int socket = *(int *)client_sock;
+  struct user *new_user;
+  fprintf(stderr, "%d\n", socket);
+  if(login_user(socket, &new_user) < 0){
+    return -1;
+  }
+  fprintf(stderr, "100\n");
+
+  fprintf(stderr, "%s\n", *new_user->cli->userid);
+}
 
 int main(int argc, char* argv[]) {
-  struct sockaddr_in server_addr, client_addr[10];
-  char user_name[MAXNAME], server_response;
-  struct handler_info info;
+
   int server_sock, client_sock, sock_size, *aux_sock, temp_sock, aux_index, *index;
   int client_count = 0;
 
@@ -146,82 +198,24 @@ int main(int argc, char* argv[]) {
     exit(-1);
   }
 
-  // create TCP socket
-  server_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
-  if (server_sock < 0) {
-    fprintf(stderr, "Error: Could not create socket.\n");
-    exit(-1);
-  }
+
   // Initialize
-  sock_size = sizeof(struct sockaddr_in);
+  server_sock = get_socket(atoi(argv[1]));
 
-  memset((char *) &server_addr, 0, sock_size);
-  memset((char *) &client_addr, 0, sock_size);
-
-  server_addr.sin_addr.s_addr = INADDR_ANY;
-  server_addr.sin_port = htons(atoi(argv[1]));
-  server_addr.sin_family = AF_INET;
-  printf("Binding socket\n");
-  // Bind
-  if (bind(server_sock, (struct sockaddr *)&server_addr, sock_size) < 0) {
-    fprintf(stderr, "Error: Could not bind socket.\n");
-    exit(-1);
-  }
-  // Listen
-  printf("Start listening\n");
-  listen(server_sock , 5);
 
   // Accept
-  while (temp_sock = accept(server_sock, (struct sockaddr *) &client_addr[client_count], (socklen_t *) &sock_size)) {
-    printf("temp_sock %d\n", temp_sock);
-    if (recv(temp_sock, user_name, sizeof(user_name), 0) < 0){
-      printf("error on recv\n");
-      return 0;
-    }
-    aux_index = isLoggedIn(user_name);
-    server_response = 1;
-    printf("aux_index %d \n", aux_index);
-    printf("logged %d\n", user_list[aux_index].logged_in);
-    if (aux_index != -1) {
-      if (user_list[aux_index].logged_in == 2) {
-        printf("User device limit reached for user: %s\n", user_name);
-        server_response = -1;
-      } else if (user_list[aux_index].devices[0] == 0) {
-        user_list[aux_index].devices[0] = temp_sock;
-        info.device = 0;
-        user_list[aux_index].logged_in++;
-      } else {
-        user_list[aux_index].devices[1] = temp_sock;
-        info.device = 1;
-        user_list[aux_index].logged_in++;
-      }
-    } else {
-      strcpy(user_list[client_count].userid, user_name);
-      user_list[client_count].devices[0] = temp_sock;
-      info.device = 0;
-      user_list[client_count].logged_in++;
-      aux_index = client_count;
-    }
-    if (create_dir_for(user_name) == 0){
-      printf("User already has directory\n");
-    } else {
-      printf("User directory created\n");
+  while(1) {
+    client_sock = connect_to_client(server_sock);
+    if(client_sock > 0){
+      pthread_t client_thread;
+      int *aux_sock = malloc(sizeof(int));
+      *aux_sock = client_sock;
+
+      pthread_create(&client_thread, NULL, treat_client,(void *)aux_sock);
+
     }
 
-    send(temp_sock, &server_response,sizeof(server_response), 0);
-    printf("server_response %d \n", server_response);
-    if (server_response != -1){
-      pthread_t socket_handler;
-      info.index = aux_index;
-      client_count += 1;
 
-      printf("Creating new thread\n");
-      if ( pthread_create( &socket_handler, NULL,  client_handler, (void *) &info) < 0) {
-        fprintf(stderr, "Error: Could not create thread.\n");
-        exit(-1);
-      }
-      printf("New thread assigned\n");
-    }
   }
   if (client_sock < 0) {
     perror("accept failed");
