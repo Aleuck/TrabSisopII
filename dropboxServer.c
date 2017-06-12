@@ -33,7 +33,7 @@ void sync_server(){
   return;
 }
 
-void receive_file(int client_socket, FILE_INFO file, char *username){
+void receive_file(int client_socket, FILE_INFO file, struct user *user){
 
 //add to user files
 
@@ -45,7 +45,7 @@ void receive_file(int client_socket, FILE_INFO file, char *username){
   FILE *file_handler;
   const char* home_dir = getenv ("HOME");
 
-  sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, username, file.name);
+  sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, user->cli->userid, file.name);
   fprintf(stderr, "%s\n", path);
   file_handler = fopen(path,"w");
   bzero(buffer,SEG_SIZE);
@@ -60,31 +60,30 @@ void receive_file(int client_socket, FILE_INFO file, char *username){
       }
 }
 
-void send_file(int client_socket, FILE_INFO file, char *username){
+void send_file(int client_socket, FILE_INFO file, struct user *user){
   int i = 0,  sent_size, aux_print;
   FILE *file_handler;
   REQUEST user_request;
-
   const char* home_dir = getenv ("HOME");
   char path[100], buffer[SEG_SIZE], filename[MAXNAME];
 
-  sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, username,file.name);
+  sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, user->cli->userid,file.name);
 
   fprintf(stderr, "Sending file %s\n", path);
   if ((file_handler = fopen(path, "r")) == NULL) {
-        printf("Error sending the file to user: %s \n", username);
+        printf("Error sending the file to user: %s \n", user->cli->userid);
         return;
     }
 
     while ((sent_size = fread(buffer, 1,sizeof(buffer), file_handler)) > 0){
       if ((aux_print = send(client_socket,buffer,sent_size,0)) < sent_size) {
-          fprintf(stderr,"Error sending the file to user: %s %d \n", username, aux_print);
+          fprintf(stderr,"Error sending the file to user: %s %d \n", user->cli->userid, aux_print);
           return;
       }
       fprintf(stderr, "send result : %d\n",aux_print);
       bzero(buffer, SEG_SIZE); // Reseta o buffer
   }
-  fprintf(stderr, "send finished to client: %s\n", username);
+  fprintf(stderr, "send finished to client: %s\n", user->cli->userid);
   fclose(file_handler);
   return;
 }
@@ -117,7 +116,7 @@ int create_dir_for(char *user_name) {
   struct stat st = {0};
   const char* home_dir = getenv ("HOME");
   char path [256];
-  printf("user name recived = %s\n",user_name);
+  //printf("user name recived = %s\n",user_name);
   sprintf (path, "%s/sisopBox/sync_dir_%s",home_dir,user_name);
 
   if (stat(path, &st) == -1) {
@@ -169,24 +168,46 @@ int connect_to_client(int server_sock){
   }
   return client_sock;
 }
-
+void procces_command(struct user *current_user, REQUEST user_request, int client_socket){
+  switch(user_request.command){
+    case CMD_DOWNLOAD:
+      send_file(client_socket, user_request.file_info, current_user);
+      break;
+    case CMD_UPLOAD:
+      receive_file(client_socket, user_request.file_info, current_user);
+      break;
+    case CMD_LIST:
+      break;
+  }
+}
 void *treat_client(void *client_sock){
-  int socket = *(int *)client_sock;
+  int socket = *(int *)client_sock, sent;
   struct user *new_user;
+  char response_buffer = 0;
+  REQUEST client_request;
   fprintf(stderr, "%d\n", socket);
+
   if(login_user(socket, &new_user) < 0){
+    close(socket);
     return -1;
   }
-  fprintf(stderr, "100\n");
-
-  fprintf(stderr, "%s\n", *new_user->cli->userid);
+  create_dir_for(new_user->cli->userid);
+  response_buffer = 1;
+  sent = send(socket, &response_buffer,sizeof(char),0);
+  fprintf(stderr, "sent: %d\n", sent);
+  while(recv(socket, &client_request, sizeof(REQUEST),0) != 0){
+    procces_command(new_user, client_request, socket);
+  }
+  logout_user(socket ,&new_user);
+  close(socket);
 }
+
 
 int main(int argc, char* argv[]) {
 
   int server_sock, client_sock, sock_size, *aux_sock, temp_sock, aux_index, *index;
   int client_count = 0;
-
+  ul_init();
   create_server_dir();
 
   loginfo("server started...");
