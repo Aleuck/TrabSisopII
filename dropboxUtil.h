@@ -16,7 +16,7 @@
 
 #define SEG_SIZE  1250
 
-#define BUF_FILE_INFO_LEN (3*MAXNAME + 4)
+#define FILE_INFO_BUFLEN (3*MAXNAME + 4)
 
 typedef struct file_info {
   char name[MAXNAME];

@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <pthread.h>
+
+#include "linked_list.h"
 #include "dropboxUtil.h"
 #include "dropboxClient.h"
 #include "dropboxClientCli.h"
@@ -153,6 +155,51 @@ void get_file(SESSION *user_session, char *filename) {
           return;
         }
       }
+}
+
+struct linked_list get_file_list(SESSION *user_session) {
+	struct linked_list list;
+	ll_init(sizeof(struct file_info), &list);
+	pthread_mutex_lock(&(user_session->connection_mutex));
+	REQUEST request;
+	request.command = CMD_LIST;
+
+	int socket = user_session->connection;
+
+	int send_len = send(socket, (char *)&request, sizeof(request), 0);
+	if (send_len < 0) goto socket_error;
+	else if (send_len == 0) goto socket_closed;
+
+	uint32_t uintbuf;
+	int recv_len = recv(socket, (void *)&uintbuf, 4, 0);
+	if (recv_len < 0) goto socket_error;
+	else if (recv_len == 0) goto socket_closed;
+	int num_files = ntohl(uintbuf);
+
+	int i;
+	char buf[FILE_INFO_BUFLEN];
+	struct file_info info;
+	for (i = 0; i < num_files; i++) {
+		int recv_len = recv(socket, (void *)buf, FILE_INFO_BUFLEN, 0);
+		if (recv_len < 0) goto socket_error;
+		else if (recv_len == 0) goto socket_closed;
+
+		deserialize_file_info(&info, buf);
+		logdebug("get_file_list(): received file_info %s", info.name);
+		ll_put(info.name, &info, &list);
+	}
+
+	return list;
+
+socket_error:
+	logerror("get_file_list(): socket error");
+	pthread_mutex_unlock(&(user_session->connection_mutex));
+	return list;
+
+socket_closed:
+	logerror("get_file_list(): socket closed");
+	pthread_mutex_unlock(&(user_session->connection_mutex));
+	return list;
 }
 
 int main(int argc, char* argv[]) {

@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+
+#include "linked_list.h"
 #include "dropboxUtil.h"
 #include "dropboxClient.h"
 #include "dropboxClientCli.h"
@@ -64,7 +66,16 @@ void *client_cli(void *session_arg) {
         get_file(user_session, filepath);
         break;
       case CMD_LIST:
-        printf("l.\n");
+		;
+		struct linked_list list = get_file_list(user_session);
+		struct ll_item *item = list.first;
+		while (item != NULL) {
+			struct file_info* info;
+			info = (struct file_info *)item->value;
+			fprint_file_info(stdout, info);
+			item = item->next;
+		}
+		ll_term(&list);
         break;
       case CMD_EXIT:
         end_session(user_session);

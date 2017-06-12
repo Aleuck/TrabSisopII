@@ -3,6 +3,8 @@
 #include <pthread.h>
 #include <netinet/in.h>
 
+#define FILE_INFO_BUFLEN (3*MAXNAME + 4)
+
 typedef struct session {
   char userid[MAXNAME];
   struct sockaddr_in server;
@@ -14,5 +16,6 @@ typedef struct session {
 void end_session(SESSION * user_session);
 void send_file(SESSION *user_session, char *filename);
 void get_file(SESSION *user_session, char *filename);
+struct linked_list get_file_list(SESSION *user_session);
 
 #endif

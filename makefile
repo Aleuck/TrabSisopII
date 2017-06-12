@@ -15,16 +15,13 @@ LDFLAGS = -L$(LIBDIR) -pthread -lpthread
 SRC = dropboxServer.c dropboxClient.c
 OBJ = $(SRC:.c=.o)
 
-all: dropboxServer dropboxClient $(LIBDIR)/dropboxUtil.so
+all: dropboxServer dropboxClient
 
-dropboxServer: logging.o user_login.o linked_list.o dropboxServer.o
+dropboxServer: dropboxClientSync.o user_login.o linked_list.o logging.o dropboxUtil.o dropboxServer.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
-dropboxClient: dropboxClient.o dropboxClientCli.o dropboxClientSync.o
+dropboxClient: dropboxClientSync.o user_login.o linked_list.o logging.o dropboxUtil.o dropboxClient.o dropboxClientCli.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
-
-$(LIBDIR)/dropboxUtil.so: dropboxUtil.o
-	$(CC) -shared -o $@ $< $(CFLAGS)
 
 %.o: %.c
 	$(CC) -o $@ -c $< $(CFLAGS)

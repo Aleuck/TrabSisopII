@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "info1\n");
 	fprint_file_info(stderr, &info1);
 
-	char buf[BUF_FILE_INFO_LEN];
+	char buf[FILE_INFO_BUFLEN];
 	serialize_file_info(&info1, buf);
 
 	struct file_info info2;
