@@ -1,6 +1,8 @@
 #ifndef DROPBOX_UTIL_H
 #define DROPBOX_UTIL_H
 
+#include <stdio.h>
+
 // Maximum file name with null terminator
 #define MAXNAME 100
 #define MAXFILES 10
@@ -14,6 +16,8 @@
 
 #define SEG_SIZE  1250
 
+#define BUF_FILE_INFO_LEN (3*MAXNAME + 4)
+
 typedef struct file_info {
   char name[MAXNAME];
   char extension[MAXNAME];
@@ -25,5 +29,9 @@ typedef struct request {
   char command;
   FILE_INFO file_info;
 } REQUEST;
+
+void serialize_file_info(struct file_info *info, char *buf);
+void deserialize_file_info(struct file_info *info, char *buf);
+void fprint_file_info(FILE *stream, struct file_info *info);
 
 #endif /* DROPBOX_UTIL_H */
