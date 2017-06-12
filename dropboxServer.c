@@ -32,35 +32,58 @@ void sync_server(){
   return;
 }
 
-void recieve_file(char *file){
+void recieve_file(int client_socket, FILE_INFO file, char *username){
 
-  return;
+//add to user files
+
+//
+
+  char buffer[SEG_SIZE], path[100];
+  REQUEST client_request;
+  ssize_t recieved_size;
+  FILE *file_handler;
+  const char* home_dir = getenv ("HOME");
+
+  sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, username, file.name);
+  fprintf(stderr, "%s\n", path);
+  file_handler = fopen(path,"w");
+  bzero(buffer,SEG_SIZE);
+  while ((recieved_size = recv(client_socket, buffer, sizeof(buffer), 0)) > 0){
+      fwrite(buffer, 1,recieved_size, file_handler); // Escreve no arquivo
+      bzero(buffer, SEG_SIZE);
+      if(recieved_size < SEG_SIZE){ // Se o pacote que veio, for menor que o tamanho total, eh porque o arquivo acabou
+          fprintf(stderr, "arquivo recebido: %d\n", recieved_size);
+          fclose(file_handler);
+          return;
+        }
+      }
 }
 
 void send_file(int client_socket, FILE_INFO file, char *username){
-  int i = 0, file_handler, sent_size;
+  int i = 0,  sent_size, aux_print;
+  FILE *file_handler;
   REQUEST user_request;
 
+  const char* home_dir = getenv ("HOME");
+  char path[100], buffer[SEG_SIZE], filename[MAXNAME];
 
-  char path[100] = "sync_dir_", buffer[SEG_SIZE], filename[MAXNAME];
-  strcat(path,username);
-  strcat(path,"/");
-  strcat(path,file.name);
+  sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, username,file.name);
 
-  fprintf(stderr, "Sending file in path %s\n", path);
-
+  fprintf(stderr, "Sending file %s\n", path);
   if ((file_handler = fopen(path, "r")) == NULL) {
         printf("Error sending the file to user: %s \n", username);
         return;
     }
+
     while ((sent_size = fread(buffer, 1,sizeof(buffer), file_handler)) > 0){
-      if (send(client_socket,buffer,sent_size,0) < sent_size) {
-          printf("Error sending the file to user: %s \n", username);
+      if ((aux_print = send(client_socket,buffer,sent_size,0)) < sent_size) {
+          fprintf(stderr,"Error sending the file to user: %s %d \n", username, aux_print);
           return;
       }
+      fprintf(stderr, "send result : %d\n",aux_print);
       bzero(buffer, SEG_SIZE); // Reseta o buffer
   }
-
+  fprintf(stderr, "send finished to client: %s\n", username);
   fclose(file_handler);
   return;
 }
@@ -75,13 +98,26 @@ int isLoggedIn(char *user_name) {
   return -1;
 }
 //Returns 1 if dir was created, 0 if dir already exists
+int create_server_dir() {
+  struct stat st = {0};
+  char path[100];
+  const char* home_dir = getenv ("HOME");
+  sprintf (path, "%s/sisopBox",home_dir);
+
+  if (stat(path, &st) == -1) {
+    mkdir(path, 07777);
+    return 1;
+  }
+
+  return 0;
+}
 
 int create_dir_for(char *user_name) {
   struct stat st = {0};
   const char* home_dir = getenv ("HOME");
   char path [256];
   printf("user name recived = %s\n",user_name);
-  sprintf (path, "%s/Desktop/sync_dir_%s",home_dir,user_name);
+  sprintf (path, "%s/sisopBox/sync_dir_%s",home_dir,user_name);
 
   if (stat(path, &st) == -1) {
     mkdir(path, 07777);
@@ -94,10 +130,12 @@ int create_dir_for(char *user_name) {
 
 int main(int argc, char* argv[]) {
   struct sockaddr_in server_addr, client_addr[10];
-  char user_name[MAXNAME];
+  char user_name[MAXNAME], server_response;
   struct handler_info info;
-  int server_sock, client_sock, sock_size, *aux_sock, temp_sock, aux_index, server_response, *index;
+  int server_sock, client_sock, sock_size, *aux_sock, temp_sock, aux_index, *index;
   int client_count = 0;
+
+  create_server_dir();
 
   loginfo("server started...");
   flogdebug("%d arguments given", argc);
@@ -132,6 +170,7 @@ int main(int argc, char* argv[]) {
   // Listen
   printf("Start listening\n");
   listen(server_sock , 5);
+
   // Accept
   while (temp_sock = accept(server_sock, (struct sockaddr *) &client_addr[client_count], (socklen_t *) &sock_size)) {
     printf("temp_sock %d\n", temp_sock);
@@ -211,16 +250,20 @@ void *client_handler(void *client_info) {
       printf("ended here\n");
       return 0;
     }
-    printf("client_request = %c for client = %s\n", client_request.command, user_list[client_number].userid);
+    printf("client_request = %d for client = %s\n", client_request.command, user_list[client_number].userid);
 
     switch (client_request.command) {
-      case '0':
+      case 0:
         break;
-      case '1':
+      case CMD_UPLOAD:
+        fprintf(stderr ,"chegou\n");
+        recieve_file(user_list[client_number].devices[client_device],client_request.file_info, user_list[client_number].userid);
+        break;
+
+      case 2:
+        fprintf(stderr ,"chegou\n");
         send_file(user_list[client_number].devices[client_device],client_request.file_info, user_list[client_number].userid);
-        //break;
-      case '2':
-        //recieve_file()
+      //break;
         break;
     }
   }
