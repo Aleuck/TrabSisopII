@@ -278,11 +278,13 @@ int main(int argc, char* argv[]) {
     printf("Couldn't create threads.\n");
     exit(1);
   }
+
   rc = pthread_create(&thread_sync, NULL, client_sync, (void *) &user_session);
   if (rc != 0) {
     printf("Couldn't create threads.\n");
     exit(1);
   }
+  
   // while (client_request != 100) {
   //
   //   scanf("%d", &client_request);

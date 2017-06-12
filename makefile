@@ -9,7 +9,7 @@
 LOGLEVEL := 2
 
 CC = gcc
-CFLAGS = -W -Wall -D LOGLEVEL=$(LOGLEVEL)
+CFLAGS = -g -W -Wall -D LOGLEVEL=$(LOGLEVEL)
 LIBDIR =.
 LDFLAGS = -L$(LIBDIR) -pthread -lpthread
 SRC = dropboxServer.c dropboxClient.c

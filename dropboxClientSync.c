@@ -26,12 +26,14 @@ void *client_sync(void *session_arg) {
   struct inotify_event *event;
   struct linked_list filelist_server, update_list;
   // Initialize inotify
+
   fd = inotify_init1(IN_NONBLOCK);
   if (fd < 0) {
     logerror("could not start inotify");
     end_session(user_session);
     exit(EXIT_FAILURE);
   }
+
   sprintf (sync_dir_path, "%s/sync_dir_%s",home_dir, user_session->userid);
   flogdebug("inotify watching `%s`\n", sync_dir_path);
   wd = inotify_add_watch (fd, sync_dir_path, IN_MODIFY | IN_CREATE | IN_DELETE);
@@ -84,8 +86,8 @@ void *client_sync(void *session_arg) {
       get_file(user_session, info->name, 1);
       item = item->next;
     }
-    ll_term(&update_list);
-    ll_term(&filelist_server);
+    //ll_term(&update_list);
+    //ll_term(&filelist_server);
     sleep(3);
   }
   return 0;
