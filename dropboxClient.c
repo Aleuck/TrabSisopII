@@ -169,8 +169,10 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   char buffer[SEG_SIZE];
   char path[256];
   REQUEST client_request;
-  ssize_t received_size;
+  ssize_t received_size, received_total;
   FILE *file_handler;
+  FILE_INFO file_to_get;
+  char bufinfo[FILE_INFO_BUFLEN];
   pthread_mutex_lock(&(user_session->connection_mutex));
   strcpy(client_request.file_info.name, filename);
   client_request.command = CMD_DOWNLOAD;
@@ -185,15 +187,17 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
     logerror("(get) Could not open file.");
   } else {
     send(user_session->connection,(char *)&client_request,sizeof(client_request),0);
+    recv(user_session->connection, bufinfo, FILE_INFO_BUFLEN, 0);
+    deserialize_file_info(&file_to_get, bufinfo);
     bzero(buffer,SEG_SIZE);
-    while ((received_size = recv(user_session->connection, buffer, sizeof(buffer), 0)) > 0){
+    while (received_total < (file_to_get.size - (int) sizeof(buffer))){
+      received_size = recv(user_session->connection, buffer, sizeof(buffer), 0);
       fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
       bzero(buffer, SEG_SIZE);
-      if(received_size < SEG_SIZE){ // Se o pacote que veio, for menor que o tamanho total, eh porque o arquivo acabou
-        flogdebug("arquivo recebido: %d\n", (int) received_size);
-        break;
-      }
+      received_total += received_size;
     }
+    received_size = recv(user_session->connection, buffer, file_to_get.size - received_total, 0);
+    fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
     fclose(file_handler);
   }
   pthread_mutex_unlock(&(user_session->connection_mutex));
