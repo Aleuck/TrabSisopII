@@ -17,7 +17,7 @@ OBJ = $(SRC:.c=.o)
 
 all: dropboxServer dropboxClient $(LIBDIR)/dropboxUtil.so
 
-dropboxServer: logging.o dropboxServer.o
+dropboxServer: logging.o user_login.o linked_list.o dropboxServer.o
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 dropboxClient: dropboxClient.o dropboxClientCli.o dropboxClientSync.o

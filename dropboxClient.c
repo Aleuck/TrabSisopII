@@ -25,7 +25,7 @@ int create_dir_for(char *user_name) {
   const char* home_dir = getenv ("HOME");
   char path [256];
   printf("user name recived = %s\n", user_name);
-  sprintf (path, "%s/Desktop/client_dir_%s",home_dir, user_name);
+  sprintf (path, "%s/sync_dir_%s",home_dir, user_name);
   if (stat(path, &st) == -1) {
     mkdir(path, 07777);
     return 1;
@@ -61,11 +61,18 @@ void disconnect_from_server(SESSION *user_session) {
 
 int login(SESSION *user_session) {
   char server_response_byte = 0;
+  int size_received;
+  fprintf(stderr, "chegou\n");
   send(user_session->connection, user_session->userid, MAXNAME, 0);
-  if (recv(user_session->connection, &server_response_byte, sizeof(char), 0) == 0){
+  fprintf(stderr, "chegou\n");
+
+  if ((size_received = recv(user_session->connection, &server_response_byte, sizeof(char), 0)) == 0){
+    fprintf(stderr, "size_received : %d", size_received);
     printf("Server cap reached\n");
     return 0;
   }
+  fprintf(stderr, "size_received : %d", size_received);
+  fprintf(stderr, "size_received : %d, size of buffer: %d\n",size_received, server_response_byte );
   if (server_response_byte == 1) {
     printf("Login successful.\n");
     return 1;
@@ -88,22 +95,60 @@ void end_session(SESSION * user_session) {
 }
 
 void send_file(SESSION *user_session, char *filename) {
-
-    }
-void get_file(SESSION *user_session, char *filename) {
-  char buffer[SEG_SIZE];
+  char buffer[SEG_SIZE], name_aux[100];
   REQUEST client_request;
-  int file_handler, recieved_size;
+  ssize_t sent_size, aux_print;
+  FILE *file_handler;
+  FILE_INFO file_to_send;
+  const char s[2] = "/";
+  char *token;
+  strcpy(name_aux, filename);
+  fprintf(stderr, "%s\n", name_aux);
+  token = strtok(name_aux, s);
+   while( token != NULL )
+   {
+      strcpy(file_to_send.name,token);
+      token = strtok(NULL, s);
+
+   }
+  fprintf(stderr, "%s\n", file_to_send.name);
+  client_request.command = CMD_UPLOAD;
+  client_request.file_info = file_to_send;
+  send(user_session->connection,(char *)&client_request,sizeof(client_request),0);
+  if ((file_handler = fopen(filename, "r")) == NULL) {
+        printf("Error sending the file to server\n");
+        return;
+    }
+
+    while ((sent_size = fread(buffer, 1,sizeof(buffer), file_handler)) > 0){
+      if ((aux_print = send(user_session->connection,buffer,sent_size,0)) < sent_size) {
+          fprintf(stderr,"Error sending the file to server: %d \n", aux_print);
+          return;
+      }
+      //fprintf(stderr, "send result : %d\n",aux_print);
+      bzero(buffer, SEG_SIZE); // Reseta o buffer
+  }
+  //fprintf(stderr, "send finished to server\n");
+  fclose(file_handler);
+  return;
+  }
+void get_file(SESSION *user_session, char *filename) {
+  char buffer[SEG_SIZE], path[100];
+  REQUEST client_request;
+  ssize_t received_size;
+  FILE *file_handler;
+
   strcpy(client_request.file_info.name, filename);
+  client_request.command = CMD_DOWNLOAD;
+
   send(user_session->connection,(char *)&client_request,sizeof(client_request),0);
   file_handler = fopen(filename,"w");
   bzero(buffer,SEG_SIZE);
-
-  while ((recieved_size = recv(socket, buffer, sizeof(buffer), 0)) > 0){
-      fprintf(stderr, "1\n");
-      fwrite(buffer, 1,recieved_size, file_handler); // Escreve no arquivo
+  while ((received_size = recv(user_session->connection, buffer, sizeof(buffer), 0)) > 0){
+      fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
       bzero(buffer, SEG_SIZE);
-      if(recieved_size < SEG_SIZE){ // Se o pacote que veio, for menor que o tamanho total, eh porque o arquivo acabou
+      if(received_size < SEG_SIZE){ // Se o pacote que veio, for menor que o tamanho total, eh porque o arquivo acabou
+          fprintf(stderr, "arquivo recebido: %d\n", received_size);
           fclose(file_handler);
           return;
         }
