@@ -151,6 +151,7 @@ void send_file(SESSION *user_session, char *file_path) {
         bzero(buffer, SEG_SIZE); // Reseta o buffer
       }
       send_size = fread(buffer, 1, filesize - total_sent, file_handler);
+      aux_print = send(user_session->connection, buffer, send_size, 0);
       if (send_size != filesize - total_sent)
         logwarning("File size does not match, did it change during transfer?");
       aux_print = send(user_session->connection, buffer, filesize - total_sent, 0);

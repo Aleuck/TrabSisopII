@@ -65,29 +65,45 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
 }
 
 void send_file(int client_socket, FILE_INFO file, struct user *user){
-  int sent_size, aux_print;
+  int send_size, aux_print, total_sent, filesize;
   FILE *file_handler;
+  char bufinfo[FILE_INFO_BUFLEN];
   const char* home_dir = getenv ("HOME");
   char path[256], buffer[SEG_SIZE];
 
   sprintf (path, "%s/sisopBox/sync_dir_%s/%s", home_dir, user->cli->userid,file.name);
 
-  fprintf(stderr, "Sending file %s\n", path);
-  if ((file_handler = fopen(path, "r")) == NULL) {
-        printf("Error sending the file to user: %s \n", user->cli->userid);
-        return;
-    }
+  pthread_mutex_lock(user->cli_mutex);
 
-    while ((sent_size = fread(buffer, 1,sizeof(buffer), file_handler)) > 0){
-      if ((aux_print = send(client_socket,buffer,sent_size,0)) < sent_size) {
-          fprintf(stderr,"Error sending the file to user: %s %d \n", user->cli->userid, aux_print);
-          return;
+  fprintf(stderr, "Sending file %s\n", path);
+  file_handler = fopen(path, "r");
+  if (file_handler == NULL) {
+    printf("Error sending the file to user: %s \n", user->cli->userid);
+  } else {
+    fseek(file_handler, 0L, SEEK_END);
+    filesize = ftell(file_handler);
+    flogdebug("send file of size %d.", filesize);
+    rewind(file_handler);
+    file.size = filesize;
+    serialize_file_info(&file, bufinfo);
+    send(client_socket, bufinfo, FILE_INFO_BUFLEN, 0);
+    while (total_sent < (filesize - (int) sizeof(buffer))) {
+      send_size = fread(buffer, 1, sizeof(buffer), file_handler);
+      aux_print = send(client_socket, buffer, send_size, 0);
+      if (aux_print == -1) {
+        //TODO: error
+        logerror("couldn't send file completely.");
+        exit(-1);
       }
-      fprintf(stderr, "send result : %d\n",aux_print);
+      total_sent += aux_print;
       bzero(buffer, SEG_SIZE); // Reseta o buffer
+    }
+    send_size = fread(buffer, 1, filesize - total_sent, file_handler);
+    aux_print = send(client_socket, buffer, send_size, 0);
+    fprintf(stderr, "send finished to client: %s\n", user->cli->userid);
+    fclose(file_handler);
   }
-  fprintf(stderr, "send finished to client: %s\n", user->cli->userid);
-  fclose(file_handler);
+  pthread_mutex_unlock(user->cli_mutex);
   return;
 }
 
