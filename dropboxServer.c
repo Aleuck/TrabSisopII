@@ -32,7 +32,7 @@ void sync_server(){
   return;
 }
 
-void recieve_file(int client_socket, FILE_INFO file, char *username){
+void receive_file(int client_socket, FILE_INFO file, char *username){
 
 //add to user files
 
@@ -40,7 +40,7 @@ void recieve_file(int client_socket, FILE_INFO file, char *username){
 
   char buffer[SEG_SIZE], path[100];
   REQUEST client_request;
-  ssize_t recieved_size;
+  ssize_t received_size;
   FILE *file_handler;
   const char* home_dir = getenv ("HOME");
 
@@ -48,11 +48,11 @@ void recieve_file(int client_socket, FILE_INFO file, char *username){
   fprintf(stderr, "%s\n", path);
   file_handler = fopen(path,"w");
   bzero(buffer,SEG_SIZE);
-  while ((recieved_size = recv(client_socket, buffer, sizeof(buffer), 0)) > 0){
-      fwrite(buffer, 1,recieved_size, file_handler); // Escreve no arquivo
+  while ((received_size = recv(client_socket, buffer, sizeof(buffer), 0)) > 0){
+      fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
       bzero(buffer, SEG_SIZE);
-      if(recieved_size < SEG_SIZE){ // Se o pacote que veio, for menor que o tamanho total, eh porque o arquivo acabou
-          fprintf(stderr, "arquivo recebido: %d\n", recieved_size);
+      if(received_size < SEG_SIZE){ // Se o pacote que veio, for menor que o tamanho total, eh porque o arquivo acabou
+          fprintf(stderr, "arquivo recebido: %d\n", received_size);
           fclose(file_handler);
           return;
         }
@@ -257,7 +257,7 @@ void *client_handler(void *client_info) {
         break;
       case CMD_UPLOAD:
         fprintf(stderr ,"chegou\n");
-        recieve_file(user_list[client_number].devices[client_device],client_request.file_info, user_list[client_number].userid);
+        receive_file(user_list[client_number].devices[client_device],client_request.file_info, user_list[client_number].userid);
         break;
 
       case 2:

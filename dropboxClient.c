@@ -60,13 +60,13 @@ void disconnect_from_server(SESSION *user_session) {
 
 int login(SESSION *user_session) {
   char server_response_byte = 0;
-  int size_recieved;
+  int size_received;
   send(user_session->connection, user_session->userid, MAXNAME, 0);
-  if ((size_recieved = recv(user_session->connection, &server_response_byte, sizeof(char), 0)) == 0){
+  if ((size_received = recv(user_session->connection, &server_response_byte, sizeof(char), 0)) == 0){
     printf("Server cap reached\n");
     return 0;
   }
-  fprintf(stderr, "size_recieved : %d, size of buffer: %d\n",size_recieved, sizeof(char) );
+  fprintf(stderr, "size_received : %d, size of buffer: %d\n",size_received, sizeof(char) );
   if (server_response_byte == 1) {
     printf("Login successful.\n");
     return 1;
@@ -137,7 +137,7 @@ void send_file(SESSION *user_session, char *filename) {
 void get_file(SESSION *user_session, char *filename) {
   char buffer[SEG_SIZE], path[100];
   REQUEST client_request;
-  ssize_t recieved_size;
+  ssize_t received_size;
   FILE *file_handler;
   const char* home_dir = getenv ("HOME");
 
@@ -148,11 +148,11 @@ void get_file(SESSION *user_session, char *filename) {
   send(user_session->connection,(char *)&client_request,sizeof(client_request),0);
   file_handler = fopen(path,"w");
   bzero(buffer,SEG_SIZE);
-  while ((recieved_size = recv(user_session->connection, buffer, sizeof(buffer), 0)) > 0){
-      fwrite(buffer, 1,recieved_size, file_handler); // Escreve no arquivo
+  while ((received_size = recv(user_session->connection, buffer, sizeof(buffer), 0)) > 0){
+      fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
       bzero(buffer, SEG_SIZE);
-      if(recieved_size < SEG_SIZE){ // Se o pacote que veio, for menor que o tamanho total, eh porque o arquivo acabou
-          fprintf(stderr, "arquivo recebido: %d\n", recieved_size);
+      if(received_size < SEG_SIZE){ // Se o pacote que veio, for menor que o tamanho total, eh porque o arquivo acabou
+          fprintf(stderr, "arquivo recebido: %d\n", received_size);
           fclose(file_handler);
           return;
         }
