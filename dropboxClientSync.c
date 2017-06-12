@@ -51,6 +51,7 @@ void *client_sync(void *session_arg) {
       perror("read");
       exit(EXIT_FAILURE);
     } else {
+      printf("inotify run\n");
       while (i < len) {
         event = (struct inotify_event *) &buf[i];
         switch (event->mask) {

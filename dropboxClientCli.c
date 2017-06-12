@@ -70,6 +70,7 @@ void *client_cli(void *session_arg) {
     		struct ll_item *item = list.first;
     		while (item != NULL) {
     			struct file_info* info;
+          printf("item\n");
     			info = (struct file_info *)item->value;
     			fprint_file_info(stdout, info);
     			item = item->next;

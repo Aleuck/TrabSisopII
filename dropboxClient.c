@@ -144,10 +144,11 @@ void send_file(SESSION *user_session, char *file_path) {
         if (aux_print == -1) {
           //TODO: error
           logerror("couldn't send file completely.");
+          pthread_mutex_unlock(&(user_session->connection_mutex));
           end_session(user_session);
           exit(-1);
         }
-        total_sent += aux_print;
+        total_sent += send_size;
         bzero(buffer, SEG_SIZE); // Reseta o buffer
       }
       send_size = fread(buffer, 1, filesize - total_sent, file_handler);
@@ -284,7 +285,7 @@ int main(int argc, char* argv[]) {
     printf("Couldn't create threads.\n");
     exit(1);
   }
-  
+
   // while (client_request != 100) {
   //
   //   scanf("%d", &client_request);

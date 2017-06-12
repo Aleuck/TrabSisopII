@@ -35,10 +35,13 @@ void sync_server(){
 
 void receive_file(int client_socket, FILE_INFO file, struct user *user){
   char buffer[SEG_SIZE], path[256], response;
-  ssize_t received_size;
+  ssize_t received_size, received_total;
   FILE *file_handler;
+  FILE_INFO file_to_get;
   const char* home_dir = getenv ("HOME");
+  char bufinfo[FILE_INFO_BUFLEN];
   pthread_mutex_lock(user->cli_mutex);
+
   if (user->cli->files.length < MAXFILES) {
     response = CMD_ACCEPT;
     send(client_socket,&response,sizeof(response),0);
@@ -47,15 +50,26 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
     fprintf(stderr, "%s\n", path);
     file_handler = fopen(path,"w");
     bzero(buffer,SEG_SIZE);
-
-    while ((received_size = recv(client_socket, buffer, sizeof(buffer), 0)) > 0){
+    recv(client_socket, bufinfo, FILE_INFO_BUFLEN, 0);
+    deserialize_file_info(&file, bufinfo);
+    bzero(buffer,SEG_SIZE);
+    while (received_total < (file_to_get.size - (int) sizeof(buffer))){
+      received_size = recv(client_socket, buffer, sizeof(buffer), 0);
       fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
       bzero(buffer, SEG_SIZE);
-      if(received_size < SEG_SIZE){ // Se o pacote que veio, for menor que o tamanho total, eh porque o arquivo acabou
-        fprintf(stderr, "arquivo recebido: %d\n", (int) received_size);
-        break;
-      }
+      received_total += received_size;
     }
+    received_size = recv(client_socket, buffer, file_to_get.size - received_total, 0);
+    fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
+
+    // while ((received_size = recv(client_socket, buffer, sizeof(buffer), 0)) > 0){
+    //   fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
+    //   bzero(buffer, SEG_SIZE);
+    //   if(received_size < SEG_SIZE){ // Se o pacote que veio, for menor que o tamanho total, eh porque o arquivo acabou
+    //     fprintf(stderr, "arquivo recebido: %d\n", (int) received_size);
+    //     break;
+    //   }
+    // }
     fclose(file_handler);
   } else {
     response = CMD_DECLINE;
