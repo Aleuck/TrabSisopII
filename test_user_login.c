@@ -10,10 +10,14 @@
 void *same_login(void *args) {
 	int sockfd = rand();
 	struct user *user;
-	usleep(rand()%100000);
-	if (login_user(sockfd, &user) == 0) {
-		usleep(rand()%100000);
-		logout_user(sockfd, user);
+
+	int i;
+	for (i = 0; i < 200; i++) {
+		usleep(rand()%100);
+		if (login_user(sockfd, &user) == 0) {
+			usleep(rand()%100);
+			logout_user(sockfd, user);
+		}
 	}
 
 	return NULL;
@@ -40,7 +44,7 @@ int main(int argc, char *argv[])
 	for (i = 0; i < N_THREADS/2; i++) {
 		pthread_create(&threads[i], NULL, &same_login, NULL);
 	}
-	usleep(100000);
+	usleep(100);
 	for (i = N_THREADS/2; i < N_THREADS; i++) {
 		pthread_create(&threads[i], NULL, &same_login, NULL);
 	}
