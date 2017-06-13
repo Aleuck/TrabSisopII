@@ -40,6 +40,7 @@ void *client_cli(void *session_arg) {
   char command[MAXINPUT];
   char *comm;
   char *filepath;
+  char bufinfo[FILE_INFO_BUFLEN];
   while (user_session->keep_running) {
     printf(">> ");
     fgets(command, MAXINPUT, stdin);

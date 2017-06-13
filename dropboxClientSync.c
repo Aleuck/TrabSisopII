@@ -45,13 +45,13 @@ void *client_sync(void *session_arg) {
 
   while (user_session->keep_running) {
     // check for changes on file system
-    i = 0;
     len = read (fd, buf, BUF_LEN);
     if (len == -1 && errno != EAGAIN) {
       perror("read");
       exit(EXIT_FAILURE);
     } else {
       printf("inotify run\n");
+      i = 0;
       while (i < len) {
         event = (struct inotify_event *) &buf[i];
         switch (event->mask) {
@@ -74,7 +74,7 @@ void *client_sync(void *session_arg) {
             break;
         }
         if (event->len)
-        i += EVENT_SIZE + event->len;
+          i += EVENT_SIZE + event->len;
       }
     }
     filelist_server = request_file_list(user_session);

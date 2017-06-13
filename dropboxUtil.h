@@ -30,7 +30,7 @@ typedef struct file_info {
 
 typedef struct request {
   char command;
-  FILE_INFO file_info;
+  char file_info[FILE_INFO_BUFLEN];
 } REQUEST;
 
 void serialize_file_info(struct file_info *info, char *buf);

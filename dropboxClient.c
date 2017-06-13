@@ -101,10 +101,10 @@ void end_session(SESSION * user_session) {
 void send_file(SESSION *user_session, char *file_path) {
   char buffer[SEG_SIZE], name_aux[100], response;
   REQUEST client_request;
-  int filesize = 0;
   int total_sent = 0;
   ssize_t send_size, aux_print;
   FILE *file_handler;
+  char bufinfo[FILE_INFO_BUFLEN];
   FILE_INFO file_to_send;
   const char s[2] = "/";
   char *token;
@@ -118,18 +118,17 @@ void send_file(SESSION *user_session, char *file_path) {
   }
   flogdebug("%s\n", file_to_send.name);
   client_request.command = CMD_UPLOAD;
-  client_request.file_info = file_to_send;
   file_handler = fopen(file_path, "r");
   if (file_handler == NULL) {
     logerror("(send) Could not open file.");
   } else {
     // get file size
     fseek(file_handler, 0L, SEEK_END);
-    filesize = ftell(file_handler);
-    flogdebug("send file of size %d.", filesize);
+    file_to_send.size = ftell(file_handler);
+    flogdebug("send file of size %d.", file_to_send.size);
     rewind(file_handler);
     // send request to send file
-    client_request.file_info.size = htonl(filesize);
+    serialize_file_info(&file_to_send ,client_request.file_info);
     send(user_session->connection,(char *)&client_request,sizeof(client_request),0);
     // get response
     recv(user_session->connection, &response, sizeof(response), 0);
@@ -138,7 +137,7 @@ void send_file(SESSION *user_session, char *file_path) {
       flogwarning("server refused file.");
     } else {
       // server accepted
-      while (total_sent < (filesize - (int) sizeof(buffer))) {
+      while (total_sent < (file_to_send.size  - (int) sizeof(buffer))) {
         send_size = fread(buffer, 1, sizeof(buffer), file_handler);
         aux_print = send(user_session->connection, buffer, send_size, 0);
         if (aux_print == -1) {
@@ -151,13 +150,13 @@ void send_file(SESSION *user_session, char *file_path) {
         total_sent += send_size;
         bzero(buffer, SEG_SIZE); // Reseta o buffer
       }
-      send_size = fread(buffer, 1, filesize - total_sent, file_handler);
+      send_size = fread(buffer, 1, file_to_send.size - total_sent, file_handler);
       aux_print = send(user_session->connection, buffer, send_size, 0);
-      if (send_size != filesize - total_sent)
+      if (send_size != file_to_send.size - total_sent)
         logwarning("File size does not match, did it change during transfer?");
-      aux_print = send(user_session->connection, buffer, filesize - total_sent, 0);
+      aux_print = send(user_session->connection, buffer, file_to_send.size - total_sent, 0);
       send_size += aux_print;
-      if (send_size == filesize)
+      if (send_size == file_to_send.size)
         logdebug("sent size matches file size.");
       logdebug("finished sending to server.");
     }
@@ -171,13 +170,14 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   char buffer[SEG_SIZE];
   char path[256];
   REQUEST client_request;
-  ssize_t received_size, received_total;
+  int received_size, received_total=0;
   FILE *file_handler;
   FILE_INFO file_to_get;
   char bufinfo[FILE_INFO_BUFLEN];
   pthread_mutex_lock(&(user_session->connection_mutex));
-  strcpy(client_request.file_info.name, filename);
+  strcpy(file_to_get.name, filename);
   client_request.command = CMD_DOWNLOAD;
+  serialize_file_info(&file_to_get,client_request.file_info);
   if (to_sync_folder) {
     const char* home_dir = getenv ("HOME");
   	sprintf (path, "%s/sync_dir_%s/%s",home_dir,user_session->userid,filename);
@@ -188,18 +188,31 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   if (file_handler == NULL) {
     logerror("(get) Could not open file.");
   } else {
+    logdebug("(get) ask for file size.");
     send(user_session->connection,(char *)&client_request,sizeof(client_request),0);
+    logdebug("(get) receive file size.");
     recv(user_session->connection, bufinfo, FILE_INFO_BUFLEN, 0);
     deserialize_file_info(&file_to_get, bufinfo);
     bzero(buffer,SEG_SIZE);
-    while (received_total < (file_to_get.size - (int) sizeof(buffer))){
+    logdebug("(get) start to receive file.");
+    while (received_total < (int) ((int) file_to_get.size - (int) sizeof(buffer))){
+      flogdebug("reived_total = %d, file_size = %d, size_buffer = %d.",received_total,file_to_get.size , sizeof(buffer));
+      logdebug("(get) going to receive bytes.");
       received_size = recv(user_session->connection, buffer, sizeof(buffer), 0);
+      flogdebug("(get) received %d bytes.", received_size);
       fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
       bzero(buffer, SEG_SIZE);
       received_total += received_size;
     }
-    received_size = recv(user_session->connection, buffer, file_to_get.size - received_total, 0);
-    fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
+    logdebug("(get) going see if need more bytes.");
+    if ((int) ((int) file_to_get.size - (int) received_total) > 0) {
+      logdebug("(get) going get more bytes.");
+      received_size = recv(user_session->connection, buffer, (int) ((int) file_to_get.size - (int) received_total), 0);
+      fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
+      flogdebug("(get) received %d bytes.", received_size);
+      received_total += received_size;
+    }
+    flogdebug("(get) received %d bytes in total.", received_total);
     fclose(file_handler);
   }
   pthread_mutex_unlock(&(user_session->connection_mutex));

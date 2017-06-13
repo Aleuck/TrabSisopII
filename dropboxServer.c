@@ -35,7 +35,7 @@ void sync_server(){
 
 void receive_file(int client_socket, FILE_INFO file, struct user *user){
   char buffer[SEG_SIZE], path[256], response;
-  ssize_t received_size, received_total;
+  int received_size, received_total;
   FILE *file_handler;
   FILE_INFO file_to_get;
   const char* home_dir = getenv ("HOME");
@@ -43,40 +43,39 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
   pthread_mutex_lock(user->cli_mutex);
 
   if (user->cli->files.length < MAXFILES) {
+    logdebug("(receive) accepted file. waiting transfer");
     response = CMD_ACCEPT;
     send(client_socket,&response,sizeof(response),0);
 
     sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, user->cli->userid, file.name);
     fprintf(stderr, "%s\n", path);
     file_handler = fopen(path,"w");
-    bzero(buffer,SEG_SIZE);
-    recv(client_socket, bufinfo, FILE_INFO_BUFLEN, 0);
-    deserialize_file_info(&file, bufinfo);
-    bzero(buffer,SEG_SIZE);
-    while (received_total < (file_to_get.size - (int) sizeof(buffer))){
-      received_size = recv(client_socket, buffer, sizeof(buffer), 0);
+    if (file_handler == NULL) {
+      logerror("(receive) Could not open file to write");
+    } else {
+      // bzero(buffer,SEG_SIZE);
+      // recv(client_socket, bufinfo, FILE_INFO_BUFLEN, 0);
+      // deserialize_file_info(&file_to_get, bufinfo);
+      // bzero(buffer,SEG_SIZE);
+      flogerror("(receive) going to receive file of size %d", file.size);
+      while ((int) received_total < (int) ((int) file.size - (int) sizeof(buffer))){
+        received_size = recv(client_socket, buffer, sizeof(buffer), 0);
+        fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
+        bzero(buffer, SEG_SIZE);
+        received_total += received_size;
+      }
+      received_size = recv(client_socket, buffer, (int)((int) file.size - (int) received_total), 0);
       fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
-      bzero(buffer, SEG_SIZE);
-      received_total += received_size;
+      fclose(file_handler);
     }
-    received_size = recv(client_socket, buffer, file_to_get.size - received_total, 0);
-    fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
-
-    // while ((received_size = recv(client_socket, buffer, sizeof(buffer), 0)) > 0){
-    //   fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
-    //   bzero(buffer, SEG_SIZE);
-    //   if(received_size < SEG_SIZE){ // Se o pacote que veio, for menor que o tamanho total, eh porque o arquivo acabou
-    //     fprintf(stderr, "arquivo recebido: %d\n", (int) received_size);
-    //     break;
-    //   }
-    // }
-    fclose(file_handler);
   } else {
+    logdebug("(receive) declined file.");
     response = CMD_DECLINE;
     send(client_socket,&response,sizeof(response),0);
   }
   pthread_mutex_unlock(user->cli_mutex);
 }
+
 
 void send_file(int client_socket, FILE_INFO file, struct user *user){
   int send_size, aux_print, total_sent, filesize;
@@ -206,12 +205,15 @@ int connect_to_client(int server_sock){
   return client_sock;
 }
 void procces_command(struct user *current_user, REQUEST user_request, int client_socket){
+  FILE_INFO f_info;
   switch(user_request.command){
     case CMD_DOWNLOAD:
-      send_file(client_socket, user_request.file_info, current_user);
+      deserialize_file_info(&f_info, user_request.file_info);
+      send_file(client_socket, f_info, current_user);
       break;
     case CMD_UPLOAD:
-      receive_file(client_socket, user_request.file_info, current_user);
+      deserialize_file_info(&f_info, user_request.file_info);
+      receive_file(client_socket, f_info, current_user);
       break;
     case CMD_LIST:
       send_file_list(client_socket, current_user);
