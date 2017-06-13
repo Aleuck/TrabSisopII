@@ -101,20 +101,25 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
     serialize_file_info(&file, bufinfo);
     send(client_socket, bufinfo, FILE_INFO_BUFLEN, 0);
     flogdebug("(send) size_buffer = %d.", sizeof(buffer));
-    while (total_sent < ((int) filesize - (int) sizeof(buffer))) {
+    while (total_sent < filesize - (int) sizeof(buffer)) {
       send_size = fread(buffer, 1, sizeof(buffer), file_handler);
       aux_print = send(client_socket, buffer, send_size, 0);
-      if (aux_print == -1) {
+      if (aux_print <= 0) {
         //TODO: error
         logerror("(send) couldn't send file completely.");
+        pthread_mutex_unlock(user->cli_mutex);
+        fclose(file_handler);
+        return;
       }
       total_sent += aux_print;
       flogdebug("(send) %d/%d (%d to go)", total_sent, filesize, filesize - total_sent);
     }
-    send_size = fread(buffer, 1, filesize - total_sent, file_handler);
-    aux_print = send(client_socket, buffer, send_size, 0);
-    total_sent += aux_print;
-    flogdebug("(send) %d/%d (%d to go)", total_sent, filesize, filesize - total_sent);
+    if (filesize - total_sent > 0) {
+      send_size = fread(buffer, 1, filesize - total_sent, file_handler);
+      aux_print = send(client_socket, buffer, send_size, 0);
+      total_sent += aux_print;
+      flogdebug("(send) %d/%d (%d to go)", total_sent, filesize, filesize - total_sent);
+    }
     fprintf(stderr, "(send) finished to client: %s\n", user->cli->userid);
     fclose(file_handler);
   }

@@ -169,8 +169,8 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   char buffer[SEG_SIZE];
   char path[256];
   REQUEST client_request;
-  int received_size, received_total=0;
-  FILE *file_handler;
+  int received_size = 0, received_total = 0;
+  FILE *file_handler = 0;
   FILE_INFO file_to_get;
   char bufinfo[FILE_INFO_BUFLEN];
   pthread_mutex_lock(&(user_session->connection_mutex));
@@ -187,27 +187,40 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   if (file_handler == NULL) {
     logerror("(get) Could not open file.");
   } else {
-    logdebug("(get) ask for file size.");
+    logdebug("(get) requesting_file.");
     send(user_session->connection,(char *)&client_request,sizeof(client_request),0);
     logdebug("(get) receive file size.");
     recv(user_session->connection, bufinfo, FILE_INFO_BUFLEN, 0);
     deserialize_file_info(&file_to_get, bufinfo);
-    bzero(buffer,SEG_SIZE);
     logdebug("(get) start to receive file.");
     flogdebug("(get) size_buffer = %d.", sizeof(buffer));
     while (received_total < (int) file_to_get.size - (int) SEG_SIZE){
       logdebug("(get) going to receive bytes.");
       received_size = recv(user_session->connection, buffer, sizeof(buffer), 0);
+      if (received_size <= 0) {
+        // conexao perdida
+        fclose(file_handler);
+        remove(path);
+        pthread_mutex_unlock(&(user_session->connection_mutex));
+        end_session(user_session);
+        return;
+      }
       flogdebug("(get) received %d bytes.", received_size);
       fwrite(buffer, 1, received_size, file_handler); // Escreve no arquivo
-      bzero(buffer, SEG_SIZE);
       received_total += received_size;
       flogdebug("(get) %d/%d (%d to go)", received_total, file_to_get.size, (int) file_to_get.size - received_total);
     }
-    logdebug("(get) going see if need more bytes.");
-    if (((int) file_to_get.size - (int) received_total) > 0) {
+    if ((int) file_to_get.size - received_total > 0) {
       logdebug("(get) going get more bytes.");
       received_size = recv(user_session->connection, buffer, (int) ((int) file_to_get.size - (int) received_total), 0);
+      if (received_size == 0) {
+        // conexao perdida
+        fclose(file_handler);
+        remove(path);
+        pthread_mutex_unlock(&(user_session->connection_mutex));
+        end_session(user_session);
+        return;
+      }
       fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
       flogdebug("(get) received %d bytes.", received_size);
       received_total += received_size;
