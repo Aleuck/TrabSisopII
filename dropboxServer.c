@@ -59,7 +59,7 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
         fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
         bzero(buffer, SEG_SIZE);
         received_total += received_size;
-        complete = received_total / file.size;
+        complete = (float) received_total / (float) file.size;
         floginfo("(receive) (user %s) received %3.2f%% of file `%s`.", user->cli->userid, complete*100, file.name);
       }
       received_size = recv(client_socket, buffer, (int)((int) file.size - (int) received_total), 0);
@@ -95,25 +95,26 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
   } else {
     fseek(file_handler, 0L, SEEK_END);
     filesize = ftell(file_handler);
-    flogdebug("send file of size %d.", filesize);
+    flogdebug("(send) file of size %d.", filesize);
     rewind(file_handler);
     file.size = filesize;
     serialize_file_info(&file, bufinfo);
     send(client_socket, bufinfo, FILE_INFO_BUFLEN, 0);
-    while (total_sent < (filesize - (int) sizeof(buffer))) {
+    flogdebug("(send) size_buffer = %d.", sizeof(buffer));
+    while (total_sent < ((int) filesize - (int) sizeof(buffer))) {
       send_size = fread(buffer, 1, sizeof(buffer), file_handler);
       aux_print = send(client_socket, buffer, send_size, 0);
       if (aux_print == -1) {
         //TODO: error
-        logerror("couldn't send file completely.");
-        exit(-1);
+        logerror("(send) couldn't send file completely.");
       }
-      total_sent += aux_print;
-      bzero(buffer, SEG_SIZE); // Reseta o buffer
+      aux_print += send_size;
+
     }
     send_size = fread(buffer, 1, filesize - total_sent, file_handler);
     aux_print = send(client_socket, buffer, send_size, 0);
-    fprintf(stderr, "send finished to client: %s\n", user->cli->userid);
+    total_sent += aux_print;
+    fprintf(stderr, "(send) finished to client: %s\n", user->cli->userid);
     fclose(file_handler);
   }
   pthread_mutex_unlock(user->cli_mutex);

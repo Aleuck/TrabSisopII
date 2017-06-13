@@ -194,24 +194,26 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
     deserialize_file_info(&file_to_get, bufinfo);
     bzero(buffer,SEG_SIZE);
     logdebug("(get) start to receive file.");
-    while (received_total < (int) ((int) file_to_get.size - (int) sizeof(buffer))){
-      flogdebug("reived_total = %d, file_size = %d, size_buffer = %d.",received_total,file_to_get.size , sizeof(buffer));
+    flogdebug("(get) size_buffer = %d.", sizeof(buffer));
+    while (received_total < (int) file_to_get.size - (int) SEG_SIZE){
       logdebug("(get) going to receive bytes.");
       received_size = recv(user_session->connection, buffer, sizeof(buffer), 0);
       flogdebug("(get) received %d bytes.", received_size);
-      fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
+      fwrite(buffer, 1, received_size, file_handler); // Escreve no arquivo
       bzero(buffer, SEG_SIZE);
       received_total += received_size;
+      flogdebug("(get) %d/%d (%d to go)", received_total, file_to_get.size, (int) file_to_get.size - received_total);
     }
     logdebug("(get) going see if need more bytes.");
-    if ((int) ((int) file_to_get.size - (int) received_total) > 0) {
+    if (((int) file_to_get.size - (int) received_total) > 0) {
       logdebug("(get) going get more bytes.");
       received_size = recv(user_session->connection, buffer, (int) ((int) file_to_get.size - (int) received_total), 0);
       fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
       flogdebug("(get) received %d bytes.", received_size);
       received_total += received_size;
+      flogdebug("(get) %d/%d (%d to go)", received_total, file_to_get.size, (int) file_to_get.size - received_total);
     }
-    flogdebug("(get) received %d bytes in total.", received_total);
+    flogdebug("(get) END: received %d bytes in total.", received_total);
     fclose(file_handler);
   }
   pthread_mutex_unlock(&(user_session->connection_mutex));
@@ -235,7 +237,7 @@ struct linked_list request_file_list(SESSION *user_session) {
 	if (recv_len < 0) goto socket_error;
 	else if (recv_len == 0) goto socket_closed;
 	int num_files = ntohl(uintbuf);
-
+  flogdebug("(request_file_list) getting list of size %d.", num_files);
 	int i;
 	char buf[FILE_INFO_BUFLEN];
 	struct file_info info;

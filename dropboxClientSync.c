@@ -59,11 +59,13 @@ void *client_sync(void *session_arg) {
             flogdebug("(inotify) created %s (%u)\n", event->name, event->len);
             sprintf(file_path, "%s/%s",sync_dir_path, event->name);
             send_file(user_session, file_path);
+            flogdebug("(inotify) finished send_file %s (%u)\n", event->name, event->len);
             break;
           case IN_MODIFY:
             flogdebug("(inotify) modified %s (%u)\n", event->name, event->len);
             sprintf(file_path, "%s/%s",sync_dir_path, event->name);
             send_file(user_session, file_path);
+            flogdebug("(inotify) finished send_file %s (%u)\n", event->name, event->len);
             break;
           case IN_DELETE:
             flogdebug("(inotify) deleted %s (%u)\n", event->name, event->len);
