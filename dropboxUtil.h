@@ -14,8 +14,9 @@
 #define CMD_EXIT         5
 #define CMD_UNDEFINED   -1
 
-#define CMD_ACCEPT 1
-#define CMD_DECLINE 2
+#define TRANSFER_ACCEPT  1
+#define TRANSFER_DECLINE 2
+#define TRANSFER_ERROR   3
 
 #define SEG_SIZE  1250
 

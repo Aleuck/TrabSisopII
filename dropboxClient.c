@@ -104,7 +104,6 @@ void send_file(SESSION *user_session, char *file_path) {
   int total_sent = 0;
   ssize_t send_size, aux_print;
   FILE *file_handler;
-  char bufinfo[FILE_INFO_BUFLEN];
   FILE_INFO file_to_send;
   const char s[2] = "/";
   char *token;
@@ -132,12 +131,12 @@ void send_file(SESSION *user_session, char *file_path) {
     send(user_session->connection,(char *)&client_request,sizeof(client_request),0);
     // get response
     recv(user_session->connection, &response, sizeof(response), 0);
-    if (response != CMD_ACCEPT) {
+    if (response != TRANSFER_ACCEPT) {
       // server refused
       flogwarning("server refused file.");
     } else {
       // server accepted
-      while (total_sent < (file_to_send.size  - (int) sizeof(buffer))) {
+      while (total_sent < ((int) file_to_send.size - (int) sizeof(buffer))) {
         send_size = fread(buffer, 1, sizeof(buffer), file_handler);
         aux_print = send(user_session->connection, buffer, send_size, 0);
         if (aux_print == -1) {
@@ -266,8 +265,8 @@ socket_closed:
 
 int main(int argc, char* argv[]) {
   pthread_t thread_cli, thread_sync;
+  SESSION user_session = {{0},{0},{0},0,{{0}},0};
   int rc;
-  SESSION user_session = {0};
 
   if (argc < 4) {
     fprintf(stderr, "Usage: %s <fulano> <host> <port>\n", argv[0]);
