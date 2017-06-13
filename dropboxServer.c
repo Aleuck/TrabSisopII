@@ -108,12 +108,13 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
         //TODO: error
         logerror("(send) couldn't send file completely.");
       }
-      aux_print += send_size;
-
+      total_sent += aux_print;
+      flogdebug("(send) %d/%d (%d to go)", total_sent, filesize, filesize - total_sent);
     }
     send_size = fread(buffer, 1, filesize - total_sent, file_handler);
     aux_print = send(client_socket, buffer, send_size, 0);
     total_sent += aux_print;
+    flogdebug("(send) %d/%d (%d to go)", total_sent, filesize, filesize - total_sent);
     fprintf(stderr, "(send) finished to client: %s\n", user->cli->userid);
     fclose(file_handler);
   }
