@@ -122,10 +122,12 @@ void send_file(SESSION *user_session, char *file_path) {
     logerror("(send) Could not open file.");
   } else {
     // get file size
+
     fseek(file_handler, 0L, SEEK_END);
     file_to_send.size = ftell(file_handler);
     flogdebug("send file of size %d.", file_to_send.size);
     rewind(file_handler);
+    get_file_stats(file_path, &file_to_send);
     // send request to send file
     serialize_file_info(&file_to_send ,msg.content);
     send(user_session->connection,(char *)&msg,sizeof(msg),0);
@@ -197,6 +199,7 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   if (file_handler == NULL) {
     logerror("(get) Could not open file.");
   } else {
+    bzero(&msg, sizeof(msg));
     logdebug("(get) requesting_file.");
     send(user_session->connection,(char *)&msg,sizeof(msg),0);
     recv(user_session->connection, &msg, sizeof(msg), 0);
@@ -242,6 +245,7 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
       received_total += received_size;
       flogdebug("(get) %d/%d (%d to go)", received_total, file_to_get.size, (int) file_to_get.size - received_total);
     }
+    set_file_stats(path, &file_to_get);
     flogdebug("(get) END: received %d bytes in total.", received_total);
     fclose(file_handler);
   }

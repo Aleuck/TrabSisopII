@@ -83,6 +83,7 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
         flogdebug("(receive) %d/%d (%d to go)", received_total, file.size, (int) file.size - received_total);
       }
       fclose(file_handler);
+      set_file_stats(path, &file);
     }
   } else {
     logdebug("(receive) declined file.");
@@ -101,7 +102,7 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
   FILE *file_handler;
   MESSAGE msg;
   const char* home_dir = getenv ("HOME");
-  char path[256];
+  char path[512];
 
   sprintf (path, "%s/sisopBox/sync_dir_%s/%s", home_dir, user->cli->userid,file.name);
 
@@ -118,8 +119,10 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
     flogdebug("(send) file of size %d.", filesize);
     rewind(file_handler);
     file.size = filesize;
+    get_file_stats(path, &file);
     msg.code = TRANSFER_ACCEPT;
     serialize_file_info(&file, msg.content);
+    msg.length = FILE_INFO_BUFLEN;
     aux_print = send(client_socket, (char *) &msg, sizeof(msg), 0);
     flogdebug("(send) size_buffer = %d.", sizeof(msg.content));
     while (total_sent < filesize - sizeof(msg.content)) {

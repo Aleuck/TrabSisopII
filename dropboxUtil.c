@@ -32,16 +32,17 @@ void deserialize_file_info(struct file_info *info, char *buf) {
 	info->size = ntohl(size);
 }
 
-void get_file_stats(char *path, FILE_INFO *file_info) {
+void get_file_stats(const char *path, FILE_INFO *file_info) {
 	struct stat file_stats;
 	stat(path, &file_stats);
 	sprintf(file_info->last_modified, "%li", file_stats.st_mtime);
 }
 
-void set_file_stats(char *path, FILE_INFO *file_info) {
+void set_file_stats(const char *path, const FILE_INFO *file_info) {
 	struct utimbuf mod_stats;
 	mod_stats.actime = atoi(file_info->last_modified);
 	mod_stats.modtime = mod_stats.actime;
+	utime(path, &mod_stats);
 }
 
 void fprint_file_info(FILE *stream, struct file_info *info) {
