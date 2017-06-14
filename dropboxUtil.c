@@ -36,6 +36,7 @@ void get_file_stats(const char *path, FILE_INFO *file_info) {
 	struct stat file_stats;
 	stat(path, &file_stats);
 	sprintf(file_info->last_modified, "%li", file_stats.st_mtime);
+	file_info->size = file_stats.st_size;
 }
 
 void set_file_stats(const char *path, const FILE_INFO *file_info) {
