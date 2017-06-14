@@ -43,7 +43,7 @@ typedef struct message {
 
 void serialize_file_info(struct file_info *info, char *buf);
 void deserialize_file_info(struct file_info *info, char *buf);
-void fprint_file_info(FILE *stream, struct file_info *info);
 void get_file_stats(const char *path, FILE_INFO *file_info);
 void set_file_stats(const char *path, const FILE_INFO *file_info);
+void fprint_file_info(FILE *stream, struct file_info *info);
 #endif /* DROPBOX_UTIL_H */

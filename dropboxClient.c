@@ -128,6 +128,7 @@ void send_file(SESSION *user_session, char *file_path) {
     flogdebug("send file of size %d.", file_to_send.size);
     rewind(file_handler);
     get_file_stats(file_path, &file_to_send);
+    fprint_file_info(stdout, &file_to_send);
     // send request to send file
     serialize_file_info(&file_to_send ,msg.content);
     send(user_session->connection,(char *)&msg,sizeof(msg),0);
@@ -139,7 +140,7 @@ void send_file(SESSION *user_session, char *file_path) {
       flogwarning("server refused file.");
     } else {
       // server accepted
-      while (total_sent < file_to_send.size - sizeof(msg.content)) {
+      while (file_to_send.size - total_sent > sizeof(msg.content)) {
         bzero(&msg, sizeof(msg));
         msg.code = TRANSFER_OK;
         send_size = fread(msg.content, 1, sizeof(msg.content), file_handler);
@@ -186,8 +187,6 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   FILE_INFO file_to_get;
   pthread_mutex_lock(&(user_session->connection_mutex));
   strcpy(file_to_get.name, filename);
-  msg.code = CMD_DOWNLOAD;
-  msg.length = FILE_INFO_BUFLEN;
   serialize_file_info(&file_to_get,msg.content);
   if (to_sync_folder) {
     const char* home_dir = getenv ("HOME");
@@ -201,13 +200,15 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   } else {
     bzero(&msg, sizeof(msg));
     logdebug("(get) requesting_file.");
+    msg.code = CMD_DOWNLOAD;
+    msg.length = FILE_INFO_BUFLEN;
     send(user_session->connection,(char *)&msg,sizeof(msg),0);
     recv(user_session->connection, &msg, sizeof(msg), 0);
     deserialize_file_info(&file_to_get, msg.content);
     flogdebug("(get) receive file size (%d).", file_to_get.size);
     logdebug("(get) start to receive file.");
     flogdebug("(get) size_buffer = %d.", sizeof(msg.content));
-    while (received_total < (int) file_to_get.size - sizeof(msg.content)){
+    while (file_to_get.size - received_total > sizeof(msg.content)){
       aux_print = recv(user_session->connection, (char*)&msg, sizeof(msg), 0);
       if (aux_print <= 0) {
         // conexao perdida
@@ -246,6 +247,7 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
       flogdebug("(get) %d/%d (%d to go)", received_total, file_to_get.size, (int) file_to_get.size - received_total);
     }
     set_file_stats(path, &file_to_get);
+    fprint_file_info(stdout, &file_to_get);
     flogdebug("(get) END: received %d bytes in total.", received_total);
     fclose(file_handler);
   }

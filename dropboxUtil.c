@@ -47,8 +47,5 @@ void set_file_stats(const char *path, const FILE_INFO *file_info) {
 }
 
 void fprint_file_info(FILE *stream, struct file_info *info) {
-	fprintf(stream, "%s\n", info->name);
-	fprintf(stream, "%s\n", info->extension);
-	fprintf(stream, "%s\n", info->last_modified);
-	fprintf(stream, "%d\n", info->size);
+	fprintf(stream, "File:\tname=`%s` ext=`%s`\n\tmod=`%s` size=`%d`\n", info->name, info->extension, info->last_modified, info->size);
 }

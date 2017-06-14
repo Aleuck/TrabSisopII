@@ -60,7 +60,7 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
       // response = TRANSFER_ACCEPT;
       // send(client_socket,&response,sizeof(response),0);
       floginfo("(receive) (user %s) accepted file `%s` of size %d. waiting transfer...", user->cli->userid, file.name, file.size);
-      while (received_total < file.size - sizeof(msg.content)) {
+      while (file.size - received_total > sizeof(msg.content)) {
         bzero(&msg,sizeof(msg));
         aux_print = recv(client_socket, (char *) &msg, sizeof(msg), 0);
         received_size = ntohl(msg.length);
@@ -84,6 +84,7 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
       }
       fclose(file_handler);
       set_file_stats(path, &file);
+      fprint_file_info(stdout, &file);
     }
   } else {
     logdebug("(receive) declined file.");
@@ -114,18 +115,14 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
     printf("Error sending the file to user: %s \n", user->cli->userid);
   } else {
     bzero(&msg, sizeof(msg));
-    fseek(file_handler, 0L, SEEK_END);
-    filesize = ftell(file_handler);
-    flogdebug("(send) file of size %d.", filesize);
-    rewind(file_handler);
-    file.size = filesize;
-    get_file_stats(path, &file);
     msg.code = TRANSFER_ACCEPT;
+    get_file_stats(path, &file);
+    fprint_file_info(stdout, &file);
     serialize_file_info(&file, msg.content);
     msg.length = FILE_INFO_BUFLEN;
     aux_print = send(client_socket, (char *) &msg, sizeof(msg), 0);
     flogdebug("(send) size_buffer = %d.", sizeof(msg.content));
-    while (total_sent < filesize - sizeof(msg.content)) {
+    while (filesize - total_sent > sizeof(msg.content)) {
       bzero(&msg,sizeof(msg));
       msg.code = TRANSFER_OK;
       send_size = fread(msg.content, 1, sizeof(msg.content), file_handler);
