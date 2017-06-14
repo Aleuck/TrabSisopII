@@ -99,7 +99,7 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
 
 void send_file(int client_socket, FILE_INFO file, struct user *user){
   int32_t send_size, aux_print;
-  uint32_t total_sent = 0, filesize;
+  uint32_t total_sent = 0;
   FILE *file_handler;
   MESSAGE msg;
   const char* home_dir = getenv ("HOME");
@@ -122,7 +122,7 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
     msg.length = FILE_INFO_BUFLEN;
     aux_print = send(client_socket, (char *) &msg, sizeof(msg), 0);
     flogdebug("(send) size_buffer = %d.", sizeof(msg.content));
-    while (filesize - total_sent > sizeof(msg.content)) {
+    while (file.size - total_sent > sizeof(msg.content)) {
       bzero(&msg,sizeof(msg));
       msg.code = TRANSFER_OK;
       send_size = fread(msg.content, 1, sizeof(msg.content), file_handler);
@@ -136,16 +136,16 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
         return;
       }
       total_sent += send_size;
-      flogdebug("(send) %d/%d (%d to go)", total_sent, filesize, filesize - total_sent);
+      flogdebug("(send) %d/%d (%d to go)", total_sent, file.size, file.size - total_sent);
     }
-    if (total_sent < filesize) {
+    if (total_sent < file.size) {
       bzero(&msg,sizeof(msg));
       msg.code = TRANSFER_END;
-      send_size = fread(msg.content, 1, filesize - total_sent, file_handler);
+      send_size = fread(msg.content, 1, file.size - total_sent, file_handler);
       msg.length = htonl(send_size);
       aux_print = send(client_socket, (char *) &msg, sizeof(msg), 0);
       total_sent += send_size;
-      flogdebug("(send) %d/%d (%d to go)", total_sent, filesize, (long) filesize - (long) total_sent);
+      flogdebug("(send) %d/%d (%d to go)", total_sent, file.size, (long) file.size - (long) total_sent);
     }
     fprintf(stderr, "(send) finished to client: %s\n", user->cli->userid);
     fclose(file_handler);

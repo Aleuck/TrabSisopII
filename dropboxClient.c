@@ -121,13 +121,9 @@ void send_file(SESSION *user_session, char *file_path) {
   if (file_handler == NULL) {
     logerror("(send) Could not open file.");
   } else {
-    // get file size
-
-    fseek(file_handler, 0L, SEEK_END);
-    file_to_send.size = ftell(file_handler);
-    flogdebug("send file of size %d.", file_to_send.size);
-    rewind(file_handler);
+    // get file stats
     get_file_stats(file_path, &file_to_send);
+    flogdebug("send file of size %d.", file_to_send.size);
     fprint_file_info(stdout, &file_to_send);
     // send request to send file
     serialize_file_info(&file_to_send ,msg.content);
