@@ -34,10 +34,11 @@ void sync_server(){
 }
 
 void receive_file(int client_socket, FILE_INFO file, struct user *user){
-  char buffer[SEG_SIZE], path[256], response;
-  int received_size, received_total;
+  char path[256];
+  uint32_t received_total = 0;
+  int32_t received_size = 0, aux_print = 0;
+  MESSAGE msg = {0, 0, {0}};
   FILE *file_handler;
-  float complete = 0.0;
   const char* home_dir = getenv ("HOME");
   pthread_mutex_lock(user->cli_mutex);
 
@@ -46,43 +47,61 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
     sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, user->cli->userid, file.name);
     fprintf(stderr, "%s\n", path);
     file_handler = fopen(path,"w");
+    bzero(&msg,sizeof(msg));
     if (file_handler == NULL) {
       logerror("(receive) Could not open file to write.");
-      response = TRANSFER_ERROR;
-      send(client_socket,&response,sizeof(response),0);
+      msg.code = TRANSFER_ERROR;
+      aux_print = send(client_socket,(char*)&msg,sizeof(msg),0);
+      // response = TRANSFER_ERROR;
+      // send(client_socket,&response,sizeof(response),0);
     } else {
-      response = TRANSFER_ACCEPT;
-      send(client_socket,&response,sizeof(response),0);
+      msg.code = TRANSFER_ACCEPT;
+      aux_print = send(client_socket,(char*)&msg,sizeof(msg),0);
+      // response = TRANSFER_ACCEPT;
+      // send(client_socket,&response,sizeof(response),0);
       floginfo("(receive) (user %s) accepted file `%s` of size %d. waiting transfer...", user->cli->userid, file.name, file.size);
-      while ((int) received_total < (int) ((int) file.size - (int) sizeof(buffer))){
-        received_size = recv(client_socket, buffer, sizeof(buffer), 0);
-        fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
-        bzero(buffer, SEG_SIZE);
+      while (received_total < file.size - sizeof(msg.content)) {
+        bzero(&msg,sizeof(msg));
+        aux_print = recv(client_socket, (char *) &msg, sizeof(msg), 0);
+        received_size = ntohl(msg.length);
+        if (msg.code != TRANSFER_OK) {
+          logerror("Transfer not OK!!!");
+        }
+        fwrite(msg.content, 1,received_size, file_handler); // Escreve no arquivo
+        bzero(&msg, sizeof(msg));
         received_total += received_size;
-        complete = (float) received_total / (float) file.size;
-        floginfo("(receive) (user %s) received %3.2f%% of file `%s`.", user->cli->userid, complete*100, file.name);
+        flogdebug("(receive) %d/%d (%d to go)", received_total, file.size, (int) file.size - received_total);
       }
-      received_size = recv(client_socket, buffer, (int)((int) file.size - (int) received_total), 0);
-      fwrite(buffer, 1,received_size, file_handler); // Escreve no arquivo
-      received_total += received_size;
-      floginfo("(receive) (user %s) received %3.2f%% of file `%s`.", user->cli->userid, complete*100, file.name);
+      if (received_total < file.size) {
+        aux_print = recv(client_socket, (char *) &msg, sizeof(msg), 0);
+        received_size = ntohl(msg.length);
+        if (msg.code != TRANSFER_END) {
+          logerror("Transfer not OK!!!");
+        }
+        fwrite(msg.content, 1, received_size, file_handler); // Escreve no arquivo
+        received_total += received_size;
+        flogdebug("(receive) %d/%d (%d to go)", received_total, file.size, (int) file.size - received_total);
+      }
       fclose(file_handler);
     }
   } else {
     logdebug("(receive) declined file.");
-    response = TRANSFER_DECLINE;
-    send(client_socket,&response,sizeof(response),0);
+    msg.code = TRANSFER_DECLINE;
+    send(client_socket,(char*)&msg,sizeof(msg),0);
+    // response = TRANSFER_DECLINE;
+    // send(client_socket,&response,sizeof(response),0);
   }
   pthread_mutex_unlock(user->cli_mutex);
 }
 
 
 void send_file(int client_socket, FILE_INFO file, struct user *user){
-  int send_size, aux_print, total_sent, filesize;
+  int32_t send_size, aux_print;
+  uint32_t total_sent = 0, filesize;
   FILE *file_handler;
-  char bufinfo[FILE_INFO_BUFLEN];
+  MESSAGE msg;
   const char* home_dir = getenv ("HOME");
-  char path[256], buffer[SEG_SIZE];
+  char path[256];
 
   sprintf (path, "%s/sisopBox/sync_dir_%s/%s", home_dir, user->cli->userid,file.name);
 
@@ -93,17 +112,22 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
   if (file_handler == NULL) {
     printf("Error sending the file to user: %s \n", user->cli->userid);
   } else {
+    bzero(&msg, sizeof(msg));
     fseek(file_handler, 0L, SEEK_END);
     filesize = ftell(file_handler);
     flogdebug("(send) file of size %d.", filesize);
     rewind(file_handler);
     file.size = filesize;
-    serialize_file_info(&file, bufinfo);
-    send(client_socket, bufinfo, FILE_INFO_BUFLEN, 0);
-    flogdebug("(send) size_buffer = %d.", sizeof(buffer));
-    while (total_sent < filesize - (int) sizeof(buffer)) {
-      send_size = fread(buffer, 1, sizeof(buffer), file_handler);
-      aux_print = send(client_socket, buffer, send_size, 0);
+    msg.code = TRANSFER_ACCEPT;
+    serialize_file_info(&file, msg.content);
+    aux_print = send(client_socket, (char *) &msg, sizeof(msg), 0);
+    flogdebug("(send) size_buffer = %d.", sizeof(msg.content));
+    while (total_sent < filesize - sizeof(msg.content)) {
+      bzero(&msg,sizeof(msg));
+      msg.code = TRANSFER_OK;
+      send_size = fread(msg.content, 1, sizeof(msg.content), file_handler);
+      msg.length = htonl(send_size);
+      aux_print = send(client_socket, (char *) &msg, sizeof(msg), 0);
       if (aux_print <= 0) {
         //TODO: error
         logerror("(send) couldn't send file completely.");
@@ -111,14 +135,17 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
         fclose(file_handler);
         return;
       }
-      total_sent += aux_print;
+      total_sent += send_size;
       flogdebug("(send) %d/%d (%d to go)", total_sent, filesize, filesize - total_sent);
     }
-    if (filesize - total_sent > 0) {
-      send_size = fread(buffer, 1, filesize - total_sent, file_handler);
-      aux_print = send(client_socket, buffer, send_size, 0);
-      total_sent += aux_print;
-      flogdebug("(send) %d/%d (%d to go)", total_sent, filesize, filesize - total_sent);
+    if (total_sent < filesize) {
+      bzero(&msg,sizeof(msg));
+      msg.code = TRANSFER_END;
+      send_size = fread(msg.content, 1, filesize - total_sent, file_handler);
+      msg.length = htonl(send_size);
+      aux_print = send(client_socket, (char *) &msg, sizeof(msg), 0);
+      total_sent += send_size;
+      flogdebug("(send) %d/%d (%d to go)", total_sent, filesize, (long) filesize - (long) total_sent);
     }
     fprintf(stderr, "(send) finished to client: %s\n", user->cli->userid);
     fclose(file_handler);
@@ -129,18 +156,19 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
 
 void send_file_list(int client_socket, struct user *user) {
   struct ll_item *item;
-  char buf[FILE_INFO_BUFLEN];
   FILE_INFO *info;
-  uint32_t uintbuf;
+  MESSAGE msg;
   pthread_mutex_lock(user->cli_mutex);
-  uintbuf = htonl(user->cli->files.length);
+  msg.code = TRANSFER_ACCEPT;
+  msg.length = htonl(user->cli->files.length);
   // send num files
-  send(client_socket, (char *)&uintbuf, sizeof(uintbuf), 0);
+  send(client_socket, (char *)&msg, sizeof(msg), 0);
   item = user->cli->files.first;
   while (item != NULL) {
+    msg.code = TRANSFER_OK;
     info = (struct file_info *) item->value;
-    serialize_file_info(info, buf);
-    send(client_socket, buf, FILE_INFO_BUFLEN, 0);
+    serialize_file_info(info, msg.content);
+    send(client_socket, (char *) &msg, sizeof(msg), 0);
     item = item->next;
   }
   pthread_mutex_unlock(user->cli_mutex);
@@ -211,18 +239,23 @@ int connect_to_client(int server_sock){
   }
   return client_sock;
 }
-void procces_command(struct user *current_user, REQUEST user_request, int client_socket){
+void procces_command(struct user *current_user, MESSAGE user_msg, int client_socket){
   FILE_INFO f_info;
-  switch(user_request.command){
+  switch(user_msg.code){
     case CMD_DOWNLOAD:
-      deserialize_file_info(&f_info, user_request.file_info);
+      deserialize_file_info(&f_info, user_msg.content);
+      logdebug("(procces_command) send_file started.");
       send_file(client_socket, f_info, current_user);
+      logdebug("(procces_command) send_file finished.");
       break;
     case CMD_UPLOAD:
-      deserialize_file_info(&f_info, user_request.file_info);
+      deserialize_file_info(&f_info, user_msg.content);
+      logdebug("(procces_command) receive_file started.");
       receive_file(client_socket, f_info, current_user);
+      logdebug("(procces_command) receive_file finished.");
       break;
     case CMD_LIST:
+      logdebug("(procces_command) send_file_list started.");
       send_file_list(client_socket, current_user);
       break;
   }
@@ -230,19 +263,19 @@ void procces_command(struct user *current_user, REQUEST user_request, int client
 void *treat_client(void *client_sock){
   int socket = *(int *)client_sock, sent;
   struct user *new_user;
-  char response_buffer = 0;
-  REQUEST client_request;
+  MESSAGE client_msg = {0,0,{0}};
+  MESSAGE response = {0,0,{0}};
   fprintf(stderr, "%d\n", socket);
 
   if(login_user(socket, &new_user) < 0){
     close(socket);
     return (void*) -1;
   }
-  response_buffer = 1;
-  sent = send(socket, &response_buffer,sizeof(char),0);
+  response.code = 1;
+  sent = send(socket, &response,sizeof(response),0);
   fprintf(stderr, "sent: %d\n", sent);
-  while(recv(socket, &client_request, sizeof(REQUEST),0) != 0){
-    procces_command(new_user, client_request, socket);
+  while(recv(socket, &client_msg, sizeof(client_msg),0) != 0){
+    procces_command(new_user, client_msg, socket);
   }
   logout_user(socket ,new_user);
   close(socket);

@@ -2,7 +2,12 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <arpa/inet.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/time.h>
+#include <utime.h>
 
 void serialize_file_info(struct file_info *info, char *buf) {
 	memcpy(buf, info->name, MAXNAME);
@@ -25,6 +30,18 @@ void deserialize_file_info(struct file_info *info, char *buf) {
 	uint32_t size;
 	memcpy((char *)&size, buf, 4);
 	info->size = ntohl(size);
+}
+
+void get_file_stats(char *path, FILE_INFO *file_info) {
+	struct stat file_stats;
+	stat(path, &file_stats);
+	sprintf(file_info->last_modified, "%li", file_stats.st_mtime);
+}
+
+void set_file_stats(char *path, FILE_INFO *file_info) {
+	struct utimbuf mod_stats;
+	mod_stats.actime = atoi(file_info->last_modified);
+	mod_stats.modtime = mod_stats.actime;
 }
 
 void fprint_file_info(FILE *stream, struct file_info *info) {
