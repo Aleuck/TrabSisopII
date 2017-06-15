@@ -204,7 +204,7 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
       fclose(file_handler);
       remove(path);
       pthread_mutex_unlock(&(user_session->connection_mutex));
-      return
+      return;
     }
     deserialize_file_info(&file_to_get, msg.content);
     flogdebug("(get) receive file size (%d).", file_to_get.size);
