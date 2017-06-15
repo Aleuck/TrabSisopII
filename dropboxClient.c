@@ -116,7 +116,6 @@ void send_file(SESSION *user_session, char *file_path) {
     token = strtok(NULL, s);
   }
   flogdebug("%s\n", file_to_send.name);
-  msg.code = CMD_UPLOAD;
   file_handler = fopen(file_path, "r");
   if (file_handler == NULL) {
     logerror("(send) Could not open file.");
@@ -127,8 +126,9 @@ void send_file(SESSION *user_session, char *file_path) {
     fprint_file_info(stdout, &file_to_send);
     // send request to send file
     serialize_file_info(&file_to_send ,msg.content);
-    send(user_session->connection,(char *)&msg,sizeof(msg),0);
+    msg.code = CMD_UPLOAD;
     msg.length = htonl(FILE_INFO_BUFLEN);
+    send(user_session->connection,(char *)&msg,sizeof(msg),0);
     // get response
     recv(user_session->connection, &response, sizeof(response), 0);
     if (response != TRANSFER_ACCEPT) {
