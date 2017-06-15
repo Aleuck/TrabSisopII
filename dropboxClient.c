@@ -200,6 +200,12 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
     msg.length = FILE_INFO_BUFLEN;
     send(user_session->connection,(char *)&msg,sizeof(msg),0);
     recv(user_session->connection, &msg, sizeof(msg), 0);
+    if (msg.code != TRANSFER_ACCEPT) {
+      fclose(file_handler);
+      remove(path);
+      pthread_mutex_unlock(&(user_session->connection_mutex));
+      return
+    }
     deserialize_file_info(&file_to_get, msg.content);
     flogdebug("(get) receive file size (%d).", file_to_get.size);
     logdebug("(get) start to receive file.");

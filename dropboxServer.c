@@ -68,11 +68,11 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
           logerror("Transfer not OK!!!");
         }
         fwrite(msg.content, 1,received_size, file_handler); // Escreve no arquivo
-        bzero(&msg, sizeof(msg));
         received_total += received_size;
         flogdebug("(receive) %d/%d (%d to go)", received_total, file.size, (int) file.size - received_total);
       }
       if (received_total < file.size) {
+        bzero(&msg, sizeof(msg));
         aux_print = recv(client_socket, (char *) &msg, sizeof(msg), 0);
         received_size = ntohl(msg.length);
         if (msg.code != TRANSFER_END) {
@@ -101,7 +101,7 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
   int32_t send_size, aux_print;
   uint32_t total_sent = 0;
   FILE *file_handler;
-  MESSAGE msg;
+  MESSAGE msg = {0,0,{0}};
   const char* home_dir = getenv ("HOME");
   char path[512];
 
@@ -113,6 +113,7 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
   file_handler = fopen(path, "r");
   if (file_handler == NULL) {
     printf("Error sending the file to user: %s \n", user->cli->userid);
+    msg.code = TRANSFER_ERROR;
   } else {
     bzero(&msg, sizeof(msg));
     msg.code = TRANSFER_ACCEPT;
@@ -129,7 +130,7 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
       msg.length = htonl(send_size);
       aux_print = send(client_socket, (char *) &msg, sizeof(msg), 0);
       if (aux_print <= 0) {
-        //TODO: error
+        //TODO:
         logerror("(send) couldn't send file completely.");
         pthread_mutex_unlock(user->cli_mutex);
         fclose(file_handler);
