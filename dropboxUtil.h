@@ -7,18 +7,22 @@
 // Maximum file name with null terminator
 #define MAXNAME 100
 
-#define CMD_UPLOAD       1
-#define CMD_DOWNLOAD     2
-#define CMD_LIST         3
-#define CMD_GET_SYNC_DIR 4
-#define CMD_EXIT         5
-#define CMD_UNDEFINED   -1
+#define CMD_UNDEFINED     0
+#define CMD_UPLOAD        1
+#define CMD_DOWNLOAD      2
+#define CMD_LIST          3
+#define CMD_GET_SYNC_DIR  4
+#define CMD_EXIT          5
 
-#define TRANSFER_ERROR   255
-#define TRANSFER_DECLINE 0
-#define TRANSFER_ACCEPT  1
-#define TRANSFER_OK      2
-#define TRANSFER_END     3
+#define LOGIN_REQUEST    10
+#define LOGIN_ACCEPT     11
+#define LOGIN_DENY       12
+
+#define TRANSFER_DECLINE 20
+#define TRANSFER_ACCEPT  21
+#define TRANSFER_OK      22
+#define TRANSFER_END     23
+#define TRANSFER_ERROR   24
 
 #define MSG_BUFFER_SIZE  5120
 

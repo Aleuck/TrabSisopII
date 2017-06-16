@@ -96,61 +96,60 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
   pthread_mutex_unlock(user->cli_mutex);
 }
 
-
 void send_file(int client_socket, FILE_INFO file, struct user *user){
+  char path[512];
+  MESSAGE msg = {0,0,{0}};
   int32_t send_size, aux_print;
   uint32_t total_sent = 0;
   FILE *file_handler;
-  MESSAGE msg = {0,0,{0}};
   const char* home_dir = getenv ("HOME");
-  char path[512];
-
-  sprintf (path, "%s/sisopBox/sync_dir_%s/%s", home_dir, user->cli->userid,file.name);
 
   pthread_mutex_lock(user->cli_mutex);
+  sprintf (path, "%s/sisopBox/sync_dir_%s/%s", home_dir, user->cli->userid,file.name);
 
   fprintf(stderr, "Sending file %s\n", path);
   file_handler = fopen(path, "r");
   if (file_handler == NULL) {
     printf("Error sending the file to user: %s \n", user->cli->userid);
     msg.code = TRANSFER_ERROR;
-  } else {
-    bzero(&msg, sizeof(msg));
-    msg.code = TRANSFER_ACCEPT;
-    get_file_stats(path, &file);
-    fprint_file_info(stdout, &file);
-    serialize_file_info(&file, msg.content);
-    msg.length = FILE_INFO_BUFLEN;
     aux_print = send(client_socket, (char *) &msg, sizeof(msg), 0);
-    flogdebug("(send) size_buffer = %d.", sizeof(msg.content));
-    while (file.size - total_sent > sizeof(msg.content)) {
-      bzero(&msg,sizeof(msg));
-      msg.code = TRANSFER_OK;
-      send_size = fread(msg.content, 1, sizeof(msg.content), file_handler);
-      msg.length = htonl(send_size);
-      aux_print = send(client_socket, (char *) &msg, sizeof(msg), 0);
-      if (aux_print <= 0) {
-        //TODO:
-        logerror("(send) couldn't send file completely.");
-        pthread_mutex_unlock(user->cli_mutex);
-        fclose(file_handler);
-        return;
-      }
-      total_sent += send_size;
-      flogdebug("(send) %d/%d (%d to go)", total_sent, file.size, file.size - total_sent);
-    }
-    if (total_sent < file.size) {
-      bzero(&msg,sizeof(msg));
-      msg.code = TRANSFER_END;
-      send_size = fread(msg.content, 1, file.size - total_sent, file_handler);
-      msg.length = htonl(send_size);
-      aux_print = send(client_socket, (char *) &msg, sizeof(msg), 0);
-      total_sent += send_size;
-      flogdebug("(send) %d/%d (%d to go)", total_sent, file.size, (long) file.size - (long) total_sent);
-    }
-    fprintf(stderr, "(send) finished to client: %s\n", user->cli->userid);
-    fclose(file_handler);
+    pthread_mutex_unlock(user->cli_mutex);
+    return;
   }
+  msg.code = TRANSFER_ACCEPT;
+  get_file_stats(path, &file);
+  fprint_file_info(stdout, &file);
+  serialize_file_info(&file, msg.content);
+  msg.length = htonl(FILE_INFO_BUFLEN);
+  aux_print = send(client_socket, (char *) &msg, sizeof(msg), 0);
+  flogdebug("(send) size_buffer = %d.", sizeof(msg.content));
+  while (file.size - total_sent > sizeof(msg.content)) {
+    bzero(&msg,sizeof(msg));
+    msg.code = TRANSFER_OK;
+    send_size = fread(msg.content, 1, sizeof(msg.content), file_handler);
+    msg.length = htonl(send_size);
+    aux_print = send(client_socket, (char *) &msg, sizeof(msg), 0);
+    if (aux_print <= 0) {
+      //TODO:
+      logerror("(send) couldn't send file completely.");
+      pthread_mutex_unlock(user->cli_mutex);
+      fclose(file_handler);
+      return;
+    }
+    total_sent += send_size;
+    flogdebug("(send) %d/%d (%d to go)", total_sent, file.size, file.size - total_sent);
+  }
+  if (total_sent < file.size) {
+    bzero(&msg,sizeof(msg));
+    msg.code = TRANSFER_END;
+    send_size = fread(msg.content, 1, file.size - total_sent, file_handler);
+    msg.length = htonl(send_size);
+    aux_print = send(client_socket, (char *) &msg, sizeof(msg), 0);
+    total_sent += send_size;
+    flogdebug("(send) %d/%d (%d to go)", total_sent, file.size, (long) file.size - (long) total_sent);
+  }
+  fprintf(stderr, "(send) finished to client: %s\n", user->cli->userid);
+  fclose(file_handler);
   pthread_mutex_unlock(user->cli_mutex);
   return;
 }
@@ -258,6 +257,7 @@ void procces_command(struct user *current_user, MESSAGE user_msg, int client_soc
     case CMD_LIST:
       logdebug("(procces_command) send_file_list started.");
       send_file_list(client_socket, current_user);
+      logdebug("(procces_command) send_file_list finished.");
       break;
   }
 }
