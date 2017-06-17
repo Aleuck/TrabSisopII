@@ -55,17 +55,43 @@ void *client_sync(void *session_arg) {
       printf("inotify run\n");
       i = 0;
       while (i < len) {
+        FILE_INFO *list_file = NULL;
+        FILE_INFO event_file;
         event = (struct inotify_event *) &buf[i];
         switch (event->mask) {
           case IN_CREATE:
             flogdebug("(inotify) created %s (%u)\n", event->name, event->len);
+            memset(&event_file,0,sizeof(FILE_INFO));
+            strcpy(event_file.name, event->name);
             sprintf(file_path, "%s/%s",sync_dir_path, event->name);
+            if (get_file_stats(file_path, &event_file) == -1) {
+              // this is a dir, ignore
+              break;
+            }
+            list_file = ll_getref(event_file.name, &user_session->files);
+            if (list_file == NULL) {
+              ll_put(event_file.name, &event_file.name, &user_session->files);
+            } else {
+              *list_file = event_file;
+            }
             send_file(user_session, file_path);
             flogdebug("(inotify) finished send_file %s (%u)\n", event->name, event->len);
             break;
           case IN_MODIFY:
             flogdebug("(inotify) modified %s (%u)\n", event->name, event->len);
+            memset(&event_file,0,sizeof(FILE_INFO));
+            strcpy(event_file.name, event->name);
             sprintf(file_path, "%s/%s",sync_dir_path, event->name);
+            if (get_file_stats(file_path, &event_file) == -1) {
+              // this is a dir, ignore
+              break;
+            }
+            list_file = ll_getref(event_file.name, &user_session->files);
+            if (list_file == NULL) {
+              ll_put(event_file.name, &event_file.name, &user_session->files);
+            } else {
+              *list_file = event_file;
+            }
             //struct ll_item *item = find(event->name, &user_session->files);
             send_file(user_session, file_path);
             flogdebug("(inotify) finished send_file %s (%u)\n", event->name, event->len);
