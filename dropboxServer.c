@@ -41,8 +41,13 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
   FILE *file_handler;
   const char* home_dir = getenv ("HOME");
   pthread_mutex_lock(user->cli_mutex);
-
-  if (user->cli->files.length < MAXFILES) {
+  FILE_INFO *server_file;
+  server_file = ll_getref(file.name, &user->cli->files);
+  if (server_file != NULL && server_file->size == file.size && atol(server_file->last_modified) == atol(file.last_modified)) {
+    // server_file already updated
+    msg.code = TRANSFER_DECLINE;
+    send(client_socket,(char*)&msg,sizeof(msg),0);
+  } else if (user->cli->files.length < MAXFILES) {
     // user can send file
     sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, user->cli->userid, file.name);
     fprintf(stderr, "%s\n", path);
@@ -84,7 +89,11 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
       }
       fclose(file_handler);
       set_file_stats(path, &file);
-      ll_put(file.name, &file, &user->cli->files);
+      if (server_file == NULL) {
+        ll_put(file.name, &file, &user->cli->files);
+      } else {
+        *server_file = file;
+      }
       fprint_file_info(stdout, &file);
     }
   } else {
