@@ -75,14 +75,13 @@ int login(SESSION *user_session) {
   send(user_session->connection, (char*)&msg, sizeof(msg), 0);
   fprintf(stderr, "chegou\n");
 
-  if ((size_received = recv(user_session->connection, &server_response_byte, sizeof(char), 0)) == 0){
+  if ((size_received = recv(user_session->connection, &msg, sizeof(msg), 0)) == 0){
     fprintf(stderr, "size_received : %d", size_received);
     printf("Server cap reached\n");
     return 0;
   }
-  fprintf(stderr, "size_received : %d", size_received);
-  fprintf(stderr, "size_received : %d, size of buffer: %d\n",size_received, server_response_byte );
-  if (server_response_byte == 1) {
+  fprintf(stderr, "size_received : %d, response_code: %d\n",size_received, msg.code );
+  if (msg.code == LOGIN_ACCEPT) {
     printf("Login successful.\n");
     return 1;
   }
@@ -334,15 +333,15 @@ int main(int argc, char* argv[]) {
     exit(1);
   }
 
-  create_dir_for(user_session.userid);
-
-  rc = pthread_create(&thread_cli, NULL, client_cli, (void *) &user_session);
+  rc = pthread_create(&thread_sync, NULL, client_sync, (void *) &user_session);
   if (rc != 0) {
     printf("Couldn't create threads.\n");
     exit(1);
   }
 
-  rc = pthread_create(&thread_sync, NULL, client_sync, (void *) &user_session);
+  create_dir_for(user_session.userid);
+
+  rc = pthread_create(&thread_cli, NULL, client_cli, (void *) &user_session);
   if (rc != 0) {
     printf("Couldn't create threads.\n");
     exit(1);

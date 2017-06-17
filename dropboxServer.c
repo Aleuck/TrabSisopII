@@ -272,7 +272,7 @@ void *treat_client(void *client_sock){
     close(socket);
     return (void*) -1;
   }
-  response.code = 1;
+  response.code = LOGIN_ACCEPT;
   sent = send(socket, &response,sizeof(response),0);
   fprintf(stderr, "sent: %d\n", sent);
   while(recv(socket, &client_msg, sizeof(client_msg),0) != 0){
@@ -310,12 +310,8 @@ int main(int argc, char* argv[]) {
       pthread_t client_thread;
       int *aux_sock = malloc(sizeof(int));
       *aux_sock = client_sock;
-
       pthread_create(&client_thread, NULL, treat_client,(void *)aux_sock);
-
     }
-
-
   }
   if (client_sock < 0) {
     perror("accept failed");
