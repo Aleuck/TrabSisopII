@@ -19,5 +19,6 @@ void end_session(SESSION * user_session);
 void send_file(SESSION *user_session, char *filename);
 void get_file(SESSION *user_session, char *filename, int to_sync_folder);
 struct linked_list request_file_list(SESSION *user_session);
+char* get_dir_path(const char *userid);
 
 #endif
