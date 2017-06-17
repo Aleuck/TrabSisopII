@@ -2,12 +2,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include <sys/inotify.h>
 #include "dropboxUtil.h"
 #include "dropboxClient.h"
 #include "dropboxClientSync.h"
 #include "logging.h"
 #include "list_dir.h"
+#include "linked_list.h"
 
 /* size of the event structure, not counting name */
 #define EVENT_SIZE  (sizeof (struct inotify_event))
@@ -26,7 +28,6 @@ void *client_sync(void *session_arg) {
   struct inotify_event *event;
   struct linked_list filelist_server, update_list;
   // Initialize inotify
-
   fd = inotify_init1(IN_NONBLOCK);
   if (fd < 0) {
     logerror("could not start inotify");
@@ -44,6 +45,7 @@ void *client_sync(void *session_arg) {
   }
 
   while (user_session->keep_running) {
+    logdebug("-- start sync --");
     // check for changes on file system
     len = read (fd, buf, BUF_LEN);
     if (len == -1 && errno != EAGAIN) {
@@ -64,13 +66,14 @@ void *client_sync(void *session_arg) {
           case IN_MODIFY:
             flogdebug("(inotify) modified %s (%u)\n", event->name, event->len);
             sprintf(file_path, "%s/%s",sync_dir_path, event->name);
+            //struct ll_item *item = find(event->name, &user_session->files);
             send_file(user_session, file_path);
             flogdebug("(inotify) finished send_file %s (%u)\n", event->name, event->len);
             break;
           case IN_DELETE:
             flogdebug("(inotify) deleted %s (%u)\n", event->name, event->len);
             sprintf(file_path, "%s/%s",sync_dir_path, event->name);
-            //delete_file(user_session, file_path);
+            //delete_file(user_session, filename);
             break;
           default:
             break;
@@ -79,8 +82,15 @@ void *client_sync(void *session_arg) {
           i += EVENT_SIZE + event->len;
       }
     }
+    memset(&filelist_server,0,sizeof(struct linked_list));
+    memset(&update_list,0,sizeof(struct linked_list));
     filelist_server = request_file_list(user_session);
+
+    // should create file list mutex instead
+    pthread_mutex_lock(&(user_session->connection_mutex));
     update_list = need_update(&filelist_server, &user_session->files);
+    pthread_mutex_unlock(&(user_session->connection_mutex));
+
     struct ll_item *item = update_list.first;
     while (item != NULL) {
       struct file_info* info;
@@ -89,8 +99,9 @@ void *client_sync(void *session_arg) {
       get_file(user_session, info->name, 1);
       item = item->next;
     }
-    //ll_term(&update_list);
-    //ll_term(&filelist_server);
+    logdebug("--  end sync  --");
+    ll_term(&update_list);
+    ll_term(&filelist_server);
     sleep(3);
   }
   return 0;

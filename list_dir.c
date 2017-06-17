@@ -35,26 +35,14 @@ struct linked_list get_file_list(const char *dir_path) {
 
 	char *full_path = (char *)malloc(strlen(root) + MAXNAME + 1);
 	struct file_info file;
-	struct stat statbuf;
 	while ((entry = readdir(dp))) {
 		strcpy(file.name, entry->d_name);
 		strcpy(file.extension, "\0");
 
 		strcpy(full_path, root);
 		strcat(full_path, file.name);
-		if (stat(full_path, &statbuf) == -1) {
-			flogwarning("get_file_list(): stat() failed with %s", full_path);
+		if (get_file_stats(full_path, &file) == -1)
 			continue;
-		}
-
-		if (!S_ISREG(statbuf.st_mode)) {
-			/* not a regular file */
-			continue;
-		}
-
-		sprintf(file.last_modified, "%lld", (long long)statbuf.st_mtime);
-		file.size = statbuf.st_size;
-
 		ll_put(file.name, &file, &list);
 	}
 
@@ -75,11 +63,13 @@ struct linked_list need_update(struct linked_list *list1, struct linked_list *li
 
 		if (file2 == NULL) {
 			/* file not in list 2 */
+			flogdebug("file not in list2");
 			ll_put(item1->key, item1->value, &update);
 		} else {
 			/* file in list 2, but is it updated? */
 			struct file_info *file1 = item1->value;
-			if (atoi(file1->last_modified) > atoi(file2->last_modified)) {
+			flogdebug("file1 mod=%li , file2 mod=%li", atol(file1->last_modified), atol(file2->last_modified));
+			if (atol(file1->last_modified) > atol(file2->last_modified)) {
 				ll_put(item1->key, item1->value, &update);
 			}
 		}

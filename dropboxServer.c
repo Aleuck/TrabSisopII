@@ -84,6 +84,7 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
       }
       fclose(file_handler);
       set_file_stats(path, &file);
+      ll_put(file.name, &file, &user->cli->files);
       fprint_file_info(stdout, &file);
     }
   } else {

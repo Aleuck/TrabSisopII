@@ -32,16 +32,24 @@ void deserialize_file_info(struct file_info *info, char *buf) {
 	info->size = ntohl(size);
 }
 
-void get_file_stats(const char *path, FILE_INFO *file_info) {
+int get_file_stats(const char *path, FILE_INFO *file_info) {
 	struct stat file_stats;
-	stat(path, &file_stats);
+	if (stat(path, &file_stats) == -1) {
+		flogwarning("get_file_stats(): stat() failed with %s", path);
+		return -1;
+	}
+	if (!S_ISREG(file_stats.st_mode)) {
+		/* not a regular file */
+		return -1;
+	}
 	sprintf(file_info->last_modified, "%li", file_stats.st_mtime);
 	file_info->size = file_stats.st_size;
+	return 0;
 }
 
 void set_file_stats(const char *path, const FILE_INFO *file_info) {
 	struct utimbuf mod_stats;
-	mod_stats.actime = atoi(file_info->last_modified);
+	mod_stats.actime = atol(file_info->last_modified);
 	mod_stats.modtime = mod_stats.actime;
 	utime(path, &mod_stats);
 }

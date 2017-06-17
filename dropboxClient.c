@@ -24,12 +24,17 @@
 
 #endif
 
+char* get_dir_path(const char *userid) {
+  static char path[256];
+  const char* home_dir = getenv ("HOME");
+  sprintf (path, "%s/sync_dir_%s",home_dir, userid);
+  return path;
+}
+
 int create_dir_for(char *user_name) {
   struct stat st = {0};
-  const char* home_dir = getenv ("HOME");
-  char path [256];
+  char *path = get_dir_path(user_name);
   printf("user name recived = %s\n", user_name);
-  sprintf (path, "%s/sync_dir_%s",home_dir, user_name);
   if (stat(path, &st) == -1) {
     mkdir(path, 07777);
     return 1;
@@ -215,6 +220,7 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
     return;
   }
   deserialize_file_info(&file_to_get, msg.content);
+  fprint_file_info(stdout,&file_to_get);
   flogdebug("(get) receive file size (%u).", file_to_get.size);
   logdebug("(get) start to receive file.");
   flogdebug("(get) size_buffer = %u.", sizeof(msg.content));
@@ -242,7 +248,6 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
     flogdebug("(get) %d/%u (%d to go)", received_total, file_to_get.size, (int) file_to_get.size - received_total);
   }
   if (received_total < file_to_get.size) {
-    logdebug("(get) going get more bytes.");
     aux_print = recv(user_session->connection, (char*)&msg, sizeof(msg), 0);
     if (aux_print <= 0) {
       // conexao perdida
@@ -262,6 +267,7 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
     flogdebug("(get) %d/%u (%u to go)", received_total, file_to_get.size, file_to_get.size - received_total);
   }
   set_file_stats(path, &file_to_get);
+  ll_put(file_to_get.name, &file_to_get, &user_session->files);
   fprint_file_info(stdout, &file_to_get);
   flogdebug("(get) END: received %d bytes in total.", received_total);
   fclose(file_handler);
@@ -340,6 +346,7 @@ int main(int argc, char* argv[]) {
   }
 
   create_dir_for(user_session.userid);
+  user_session.files = get_file_list(get_dir_path(user_session.userid));
 
   rc = pthread_create(&thread_cli, NULL, client_cli, (void *) &user_session);
   if (rc != 0) {

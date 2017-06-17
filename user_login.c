@@ -45,7 +45,6 @@ static void rand_str(char *dest, size_t length) {
 }
 
 static void receive_username(int sockfd, char username[MAXNAME]) {
-	char new_username[MAXNAME];
 	MESSAGE msg;
 	memset(&msg, 0, sizeof(msg));
 	if(recv(sockfd, &msg, sizeof(msg), 0) == 0){

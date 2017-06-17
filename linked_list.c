@@ -148,7 +148,8 @@ static void term_ll_item_list(struct ll_item *item) {
 }
 
 int ll_term(struct linked_list *list) {
-	term_ll_item_list(list->first);
+	if (list->first != NULL)
+		term_ll_item_list(list->first);
 	return 0;
 }
 
