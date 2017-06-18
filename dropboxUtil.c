@@ -55,5 +55,5 @@ void set_file_stats(const char *path, const FILE_INFO *file_info) {
 }
 
 void fprint_file_info(FILE *stream, struct file_info *info) {
-	fprintf(stream, "File:\tname=`%s` ext=`%s`\n\tmod=`%s` size=`%d`\n", info->name, info->extension, info->last_modified, info->size);
+	fprintf(stream, " - `%35s` size: %10d mod: %10li\n", info->name, info->size, atol(info->last_modified));
 }

@@ -13,6 +13,7 @@ struct client {
   char userid[MAXNAME];
   //struct file_info files[MAXFILES];
   struct linked_list files;
+  struct linked_list deleted_files;
   int logged_in;
 };
 

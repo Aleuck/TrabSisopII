@@ -42,6 +42,7 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
   const char* home_dir = getenv ("HOME");
   pthread_mutex_lock(user->cli_mutex);
   FILE_INFO *server_file;
+  FILE_INFO *deleted_file;
   server_file = ll_getref(file.name, &user->cli->files);
   if (server_file != NULL && server_file->size == file.size && atol(server_file->last_modified) == atol(file.last_modified)) {
     // server_file already updated
@@ -89,6 +90,12 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
       }
       fclose(file_handler);
       set_file_stats(path, &file);
+      // remove from deleted
+      deleted_file = ll_getref(file.name, &user->cli->deleted_files);
+      if (deleted_file != NULL) {
+        ll_del(file.name, &user->cli->deleted_files);
+      }
+      // add to file list
       if (server_file == NULL) {
         ll_put(file.name, &file, &user->cli->files);
       } else {
@@ -164,18 +171,43 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
   return;
 }
 
+void delete_file(int client_socket, FILE_INFO file, struct user *user) {
+  char path[512];
+  MESSAGE msg = {0,0,{0}};
+  //int32_t send_size, aux_print;
+  const char* home_dir = getenv ("HOME");
+  sprintf (path, "%s/sisopBox/sync_dir_%s/%s", home_dir, user->cli->userid,file.name);
+  pthread_mutex_lock(user->cli_mutex);
+  fprintf(stderr, "Deleting file `%s`\n", path);
+  struct file_info *localfile = ll_getref(file.name, &user->cli->files);
+  if (localfile != NULL) {
+    ll_put(file.name, localfile, &user->cli->deleted_files);
+    ll_del(file.name, &user->cli->files);
+  }
+  remove(path);
+  pthread_mutex_unlock(user->cli_mutex);
+}
+
 void send_file_list(int client_socket, struct user *user) {
   struct ll_item *item;
   FILE_INFO *info;
   MESSAGE msg;
   pthread_mutex_lock(user->cli_mutex);
   msg.code = TRANSFER_ACCEPT;
-  msg.length = htonl(user->cli->files.length);
+  msg.length = htonl(user->cli->files.length + user->cli->deleted_files.length);
   // send num files
   send(client_socket, (char *)&msg, sizeof(msg), 0);
   item = user->cli->files.first;
   while (item != NULL) {
-    msg.code = TRANSFER_OK;
+    msg.code = FILE_OK;
+    info = (struct file_info *) item->value;
+    serialize_file_info(info, msg.content);
+    send(client_socket, (char *) &msg, sizeof(msg), 0);
+    item = item->next;
+  }
+  item = user->cli->deleted_files.first;
+  while (item != NULL) {
+    msg.code = FILE_DELETED;
     info = (struct file_info *) item->value;
     serialize_file_info(info, msg.content);
     send(client_socket, (char *) &msg, sizeof(msg), 0);
@@ -269,6 +301,12 @@ void procces_command(struct user *current_user, MESSAGE user_msg, int client_soc
       send_file_list(client_socket, current_user);
       logdebug("(procces_command) send_file_list finished.");
       break;
+    case CMD_DELETE:
+      deserialize_file_info(&f_info, user_msg.content);
+      logdebug("(procces_command) delete_file started.");
+      delete_file(client_socket, f_info, current_user);
+      logdebug("(procces_command) delete_file finished.");
+
   }
 }
 void *treat_client(void *client_sock){

@@ -8,7 +8,6 @@
 
 struct user {
 	struct client *cli;
-	int num_files;
 	pthread_mutex_t *cli_mutex;
 };
 

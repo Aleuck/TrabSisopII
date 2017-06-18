@@ -101,7 +101,6 @@ int login_user(int sockfd, struct user **user) {
 		if (pthread_mutex_init(logging_user.cli_mutex, NULL) != 0) {
 			die("login_user(): mutex_init() failed.");
 		}
-		logging_user.num_files = 0;
 
 		ll_put(username, &logging_user, &users);
 		*user = ll_getref(username, &users);

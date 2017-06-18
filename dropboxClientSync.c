@@ -26,7 +26,7 @@ void *client_sync(void *session_arg) {
   int fd, wd;
   int len, i = 0;
   struct inotify_event *event;
-  struct linked_list filelist_server, update_list;
+  struct linked_list filelist_server, update_list, delete_list;
   // Initialize inotify
   fd = inotify_init1(IN_NONBLOCK);
   if (fd < 0) {
@@ -99,7 +99,7 @@ void *client_sync(void *session_arg) {
           case IN_DELETE:
             flogdebug("(inotify) deleted %s (%u)\n", event->name, event->len);
             sprintf(file_path, "%s/%s",sync_dir_path, event->name);
-            //delete_file(user_session, filename);
+            delete_server_file(user_session, event->name);
             break;
           default:
             break;
@@ -109,15 +109,33 @@ void *client_sync(void *session_arg) {
       }
     }
     memset(&filelist_server,0,sizeof(struct linked_list));
+    memset(&delete_list,0,sizeof(struct linked_list));
     memset(&update_list,0,sizeof(struct linked_list));
-    filelist_server = request_file_list(user_session);
+    request_file_list(user_session, &filelist_server, &delete_list);
 
     // should create file list mutex instead
     pthread_mutex_lock(&(user_session->connection_mutex));
     update_list = need_update(&filelist_server, &user_session->files);
     pthread_mutex_unlock(&(user_session->connection_mutex));
 
-    struct ll_item *item = update_list.first;
+    struct ll_item *item;
+    // delete files
+    item = delete_list.first;
+    while (item != NULL) {
+      struct file_info* info;
+      struct file_info* localinfo;
+      info = (struct file_info *)item->value;
+      localinfo = ll_getref(info->name,  &user_session->files);
+      if (localinfo != NULL) {
+        flogdebug("deleting `%s`",info->name);
+        ll_del(info->name,  &user_session->files);
+      }
+      sprintf(file_path, "%s/%s",sync_dir_path, info->name);
+      remove(file_path);
+      item = item->next;
+    }
+    // download files
+    item = update_list.first;
     while (item != NULL) {
       struct file_info* info;
       info = (struct file_info *)item->value;
@@ -127,6 +145,7 @@ void *client_sync(void *session_arg) {
     }
     logdebug("--  end sync  --");
     ll_term(&update_list);
+    ll_term(&delete_list);
     ll_term(&filelist_server);
     sleep(3);
   }

@@ -274,9 +274,26 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   pthread_mutex_unlock(&(user_session->connection_mutex));
 }
 
-struct linked_list request_file_list(SESSION *user_session) {
-	struct linked_list list;
-	ll_init(sizeof(struct file_info), &list);
+void delete_server_file(SESSION *user_session, char *filename) {
+  MESSAGE msg = {0, 0, {0}};
+  int32_t sent_size = 0, aux_print = 0;
+  FILE_INFO file_to_delete;
+  memset(&file_to_delete, 0, sizeof(FILE_INFO));
+  strcpy(file_to_delete.name, filename);
+  msg.code = CMD_DELETE;
+  msg.length = sizeof(FILE_INFO);
+  serialize_file_info(&file_to_delete, msg.content);
+  pthread_mutex_lock(&(user_session->connection_mutex));
+  aux_print = send(user_session->connection, (char *)&msg,sizeof(msg),0);
+  pthread_mutex_unlock(&(user_session->connection_mutex));
+}
+
+//struct linked_list request_file_list(SESSION *user_session) {
+void request_file_list(SESSION *user_session, struct linked_list *server_list, struct linked_list *deleted_list) {
+  if (server_list != NULL)
+	 ll_init(sizeof(struct file_info), server_list);
+  if (deleted_list != NULL)
+	 ll_init(sizeof(struct file_info), deleted_list);
 	pthread_mutex_lock(&(user_session->connection_mutex));
   MESSAGE msg = {0,0,{0}};
   msg.code = CMD_LIST;
@@ -290,6 +307,9 @@ struct linked_list request_file_list(SESSION *user_session) {
 	int recv_len = recv(socket, (char *)&msg, sizeof(msg), 0);
 	if (recv_len < 0) goto socket_error;
 	else if (recv_len == 0) goto socket_closed;
+  if (msg.code != TRANSFER_ACCEPT) {
+    //TODO
+  }
 	uint32_t num_files = ntohl(msg.length);
   flogdebug("(request_file_list) getting list of size %d.", num_files);
 	uint32_t i;
@@ -299,23 +319,27 @@ struct linked_list request_file_list(SESSION *user_session) {
 		if (recv_len < 0) goto socket_error;
 		else if (recv_len == 0) goto socket_closed;
 
-		deserialize_file_info(&info, msg.content);
-		flogdebug("request_file_list(): received file_info %s", info.name);
-		ll_put(info.name, &info, &list);
+    if (msg.code == FILE_OK && server_list != NULL) {
+  		deserialize_file_info(&info, msg.content);
+  		ll_put(info.name, &info, server_list);
+    } else if (msg.code == FILE_DELETED && deleted_list != NULL) {
+      deserialize_file_info(&info, msg.content);
+      ll_put(info.name, &info, deleted_list);
+    }
 	}
 
   pthread_mutex_unlock(&(user_session->connection_mutex));
-	return list;
+	return;
 
 socket_error:
 	logerror("request_file_list(): socket error");
 	pthread_mutex_unlock(&(user_session->connection_mutex));
-	return list;
+	return;
 
 socket_closed:
 	logerror("request_file_list(): socket closed");
 	pthread_mutex_unlock(&(user_session->connection_mutex));
-	return list;
+	return;
 }
 
 int main(int argc, char* argv[]) {

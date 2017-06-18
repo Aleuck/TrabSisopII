@@ -13,7 +13,8 @@
 #define CMD_DOWNLOAD      2
 #define CMD_LIST          3
 #define CMD_GET_SYNC_DIR  4
-#define CMD_EXIT          5
+#define CMD_DELETE        5
+#define CMD_EXIT          9
 
 #define LOGIN_REQUEST    10
 #define LOGIN_ACCEPT     11
@@ -24,6 +25,9 @@
 #define TRANSFER_OK      22
 #define TRANSFER_END     23
 #define TRANSFER_ERROR   24
+
+#define FILE_OK          31
+#define FILE_DELETED     32
 
 #define MSG_BUFFER_SIZE  5120
 

@@ -66,7 +66,8 @@ void *client_cli(void *session_arg) {
         get_file(user_session, filepath, 0);
         break;
       case CMD_LIST:;
-        struct linked_list list = request_file_list(user_session);
+        struct linked_list list;
+        request_file_list(user_session, &list, NULL);
     		struct ll_item *item = list.first;
     		while (item != NULL) {
     			struct file_info* info;
