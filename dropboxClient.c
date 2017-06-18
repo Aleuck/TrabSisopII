@@ -76,16 +76,14 @@ int login(SESSION *user_session) {
   strcpy(msg.content, user_session->userid);
   msg.length = htonl(strlen(user_session->userid)+1);
   msg.code = LOGIN_REQUEST;
-  fprintf(stderr, "chegou\n");
   send(user_session->connection, (char*)&msg, sizeof(msg), 0);
-  fprintf(stderr, "chegou\n");
 
   if ((size_received = recv(user_session->connection, &msg, sizeof(msg), 0)) == 0){
-    fprintf(stderr, "size_received : %d", size_received);
+    flogdebug("size_received : %d", size_received);
     printf("Server cap reached\n");
     return 0;
   }
-  fprintf(stderr, "size_received : %d, response_code: %d\n",size_received, msg.code );
+  flogdebug("size_received : %d, response_code: %d\n",size_received, msg.code );
   if (msg.code == LOGIN_ACCEPT) {
     printf("Login successful.\n");
     return 1;

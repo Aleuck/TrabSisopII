@@ -52,7 +52,6 @@ void *client_sync(void *session_arg) {
       perror("read");
       exit(EXIT_FAILURE);
     } else {
-      printf("inotify run\n");
       i = 0;
       while (i < len) {
         FILE_INFO *list_file = NULL;
