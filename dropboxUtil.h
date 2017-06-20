@@ -29,7 +29,7 @@
 #define FILE_OK          31
 #define FILE_DELETED     32
 
-#define MSG_BUFFER_SIZE  5120
+#define MSG_BUFFER_SIZE  10240
 
 #define FILE_INFO_BUFLEN (3*MAXNAME + 4)
 

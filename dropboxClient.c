@@ -264,11 +264,11 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
     received_total += received_size;
     flogdebug("(get) %d/%u (%u to go)", received_total, file_to_get.size, file_to_get.size - received_total);
   }
-  set_file_stats(path, &file_to_get);
   ll_put(file_to_get.name, &file_to_get, &user_session->files);
   fprint_file_info(stdout, &file_to_get);
   flogdebug("(get) END: received %d bytes in total.", received_total);
   fclose(file_handler);
+  set_file_stats(path, &file_to_get);
   pthread_mutex_unlock(&(user_session->connection_mutex));
 }
 

@@ -106,6 +106,7 @@ int login_user(int sockfd, struct user **user) {
 		*user = ll_getref(username, &users);
 		create_server_dir_for((*user)->cli->userid);
 		ll_init(sizeof(FILE_INFO), &(*user)->cli->files);
+		ll_init(sizeof(FILE_INFO), &(*user)->cli->deleted_files);
 		get_server_dir_path_for(username, path);
 		(*user)->cli->files = get_file_list(path);
 		frpint_file_list(stderr,&(*user)->cli->files);
