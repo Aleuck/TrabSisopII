@@ -74,11 +74,11 @@ int login(SESSION *user_session) {
   MESSAGE msg;
   memset(&msg, 0, sizeof(msg));
   strcpy(msg.content, user_session->userid);
-  msg.length = htonl(strlen(user_session->userid)+1);
+  msg.length = strlen(user_session->userid)+1;
   msg.code = LOGIN_REQUEST;
-  send(user_session->connection, (char*)&msg, sizeof(msg), 0);
+  send_message(user_session->connection, &msg);
 
-  if ((size_received = recv(user_session->connection, &msg, sizeof(msg), 0)) == 0){
+  if ((size_received = recv_message(user_session->connection, &msg)) == 0){
     flogdebug("size_received : %d", size_received);
     printf("Server cap reached\n");
     return 0;
@@ -135,10 +135,10 @@ void send_file(SESSION *user_session, char *file_path) {
     // send request to send file
     serialize_file_info(&file_to_send ,msg.content);
     msg.code = CMD_UPLOAD;
-    msg.length = htonl(FILE_INFO_BUFLEN);
-    send(user_session->connection,(char *)&msg,sizeof(msg),0);
+    msg.length = FILE_INFO_BUFLEN;
+    send_message(user_session->connection, &msg);
     // get response
-    recv(user_session->connection, &msg, sizeof(msg), 0);
+    recv_message(user_session->connection, &msg);
     if (msg.code != TRANSFER_ACCEPT) {
       // server refused
       flogwarning("server refused file.");
@@ -148,8 +148,8 @@ void send_file(SESSION *user_session, char *file_path) {
         memset(&msg, 0, sizeof(msg));
         msg.code = TRANSFER_OK;
         send_size = fread(msg.content, 1, sizeof(msg.content), file_handler);
-        msg.length = htonl(send_size);
-        aux_print = send(user_session->connection, (char*) &msg, sizeof(msg), 0);
+        msg.length = send_size;
+        aux_print = send_message(user_session->connection, &msg);
         if (aux_print == -1) {
           //TODO: error
           logerror("couldn't send file completely.");
@@ -164,11 +164,15 @@ void send_file(SESSION *user_session, char *file_path) {
         memset(&msg, 0, sizeof(msg));
         msg.code = TRANSFER_END;
         send_size = fread(msg.content, 1, (int) file_to_send.size - total_sent, file_handler);
-        msg.length = htonl(send_size);
-        aux_print = send(user_session->connection, (char*)&msg, sizeof(msg), 0);
-        if (send_size != (long) file_to_send.size - (long) total_sent)
-          logwarning("File size does not match, did it change during transfer?");
-        aux_print = send(user_session->connection, &msg, sizeof(msg), 0);
+        msg.length = send_size;
+        aux_print = send_message(user_session->connection, &msg);
+        if (aux_print == -1) {
+          //TODO: error
+          logerror("couldn't send file completely.");
+          pthread_mutex_unlock(&(user_session->connection_mutex));
+          end_session(user_session);
+          exit(-1);
+        }
         total_sent += send_size;
         flogdebug("(send) %d/%d (%d to go)", total_sent, file_to_send.size, (long) file_to_send.size - (long) total_sent);
       }
@@ -205,12 +209,12 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   pthread_mutex_lock(&(user_session->connection_mutex));
   logdebug("(get) requesting_file.");
   msg.code = CMD_DOWNLOAD;
-  msg.length = htonl(FILE_INFO_BUFLEN);
+  msg.length = FILE_INFO_BUFLEN;
   serialize_file_info(&file_to_get, msg.content);
-  aux_print = send(user_session->connection,(char *)&msg,sizeof(msg),0);
+  aux_print = send_message(user_session->connection, &msg);
   sleep(1);
-  aux_print = recv(user_session->connection,(char *)&msg,sizeof(msg),0);
-  flogdebug("MSGCODE %d\nMSGLEN %d\nMSG:\n%0.256s", msg.code, ntohl(msg.length),msg.content);
+  aux_print = recv_message(user_session->connection, &msg);
+  flogdebug("MSGCODE %d\nMSGLEN %d\nMSG:\n%0.256s", msg.code, msg.length,msg.content);
   if (msg.code != TRANSFER_ACCEPT) {
     fclose(file_handler);
     remove(path);
@@ -223,7 +227,7 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   logdebug("(get) start to receive file.");
   flogdebug("(get) size_buffer = %u.", sizeof(msg.content));
   while (file_to_get.size - received_total > sizeof(msg.content)){
-    aux_print = recv(user_session->connection,(char* )&msg,sizeof(msg),0);
+    aux_print = recv_message(user_session->connection, &msg);
     if (aux_print <= 0) {
       // conexao perdida
       fclose(file_handler);
@@ -235,18 +239,18 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
     if (msg.code != TRANSFER_OK) {
       fclose(file_handler);
       remove(path);
-      flogdebug("MSGCODE %d\nMSGLEN %d\nMSG:\n%0.256s", msg.code, ntohl(msg.length),msg.content);
+      flogdebug("MSGCODE %d\nMSGLEN %d\nMSG:\n%0.256s", msg.code, msg.length,msg.content);
       logerror("Transfer not OK!!!");
       pthread_mutex_unlock(&(user_session->connection_mutex));
       return;
     }
-    received_size = ntohl(msg.length);
+    received_size = msg.length;
     fwrite(msg.content, 1, received_size, file_handler); // Escreve no arquivo
     received_total += received_size;
     flogdebug("(get) %d/%u (%d to go)", received_total, file_to_get.size, (int) file_to_get.size - received_total);
   }
   if (received_total < file_to_get.size) {
-    aux_print = recv(user_session->connection, (char*)&msg, sizeof(msg), 0);
+    aux_print = recv_message(user_session->connection, &msg);
     if (aux_print <= 0) {
       // conexao perdida
       fclose(file_handler);
@@ -258,7 +262,7 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
     if (msg.code != TRANSFER_END) {
       logerror("Transfer not OK!!!");
     }
-    received_size = ntohl(msg.length);
+    received_size = msg.length;
     fwrite(msg.content, 1,received_size, file_handler); // Escreve no arquivo
     flogdebug("(get) received %u bytes.", received_size);
     received_total += received_size;
@@ -274,7 +278,7 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
 
 void delete_server_file(SESSION *user_session, char *filename) {
   MESSAGE msg = {0, 0, {0}};
-  int32_t sent_size = 0, aux_print = 0;
+  int32_t aux_print = 0;
   FILE_INFO file_to_delete;
   memset(&file_to_delete, 0, sizeof(FILE_INFO));
   strcpy(file_to_delete.name, filename);
@@ -282,7 +286,7 @@ void delete_server_file(SESSION *user_session, char *filename) {
   msg.length = sizeof(FILE_INFO);
   serialize_file_info(&file_to_delete, msg.content);
   pthread_mutex_lock(&(user_session->connection_mutex));
-  aux_print = send(user_session->connection, (char *)&msg,sizeof(msg),0);
+  aux_print = send_message(user_session->connection, &msg);
   pthread_mutex_unlock(&(user_session->connection_mutex));
 }
 
@@ -296,24 +300,22 @@ void request_file_list(SESSION *user_session, struct linked_list *server_list, s
   MESSAGE msg = {0,0,{0}};
   msg.code = CMD_LIST;
 
-	int socket = user_session->connection;
-
-	int send_len = send(socket, (char *)&msg, sizeof(msg), 0);
+	int send_len = send_message(user_session->connection, &msg);
 	if (send_len < 0) goto socket_error;
 	else if (send_len == 0) goto socket_closed;
 
-	int recv_len = recv(socket, (char *)&msg, sizeof(msg), 0);
+	int recv_len = recv_message(user_session->connection, &msg);
 	if (recv_len < 0) goto socket_error;
 	else if (recv_len == 0) goto socket_closed;
   if (msg.code != TRANSFER_ACCEPT) {
     //TODO
   }
-	uint32_t num_files = ntohl(msg.length);
+	uint32_t num_files = msg.length;
   flogdebug("(request_file_list) getting list of size %d.", num_files);
 	uint32_t i;
 	struct file_info info;
 	for (i = 0; i < num_files; i++) {
-		int recv_len = recv(socket, (char *)&msg, sizeof(msg), 0);
+		int recv_len = recv_message(user_session->connection, &msg);
 		if (recv_len < 0) goto socket_error;
 		else if (recv_len == 0) goto socket_closed;
 
@@ -376,18 +378,6 @@ int main(int argc, char* argv[]) {
     exit(1);
   }
 
-  // while (client_request != 100) {
-  //
-  //   scanf("%d", &client_request);
-  //
-  //   switch (client_request) {
-  //     default:
-  //       send(user_session.connection, &client_request, sizeof(int), 0);
-  //       recv(user_session.connection, &server_response_int, sizeof(int), 0);
-  //       printf("server_response %d\n", server_response_int);
-  //       break;
-  //   }
-  //}
   pthread_join(thread_sync, NULL);
   pthread_join(thread_cli, NULL);
   disconnect_from_server(&user_session);

@@ -29,7 +29,9 @@
 #define FILE_OK          31
 #define FILE_DELETED     32
 
-#define MSG_BUFFER_SIZE  10240
+#define MSG_MAX_LENGTH  1250
+#define MSG_BUFFER_SIZE (1 + 4 + MSG_MAX_LENGTH)
+
 
 #define FILE_INFO_BUFLEN (3*MAXNAME + 4)
 
@@ -47,7 +49,7 @@ typedef struct file_info {
 typedef struct message {
   char code;
   uint32_t length;
-  char content[MSG_BUFFER_SIZE];
+  char content[MSG_MAX_LENGTH];
 } MESSAGE;
 
 void serialize_file_info(struct file_info *info, char *buf);
@@ -55,4 +57,7 @@ void deserialize_file_info(struct file_info *info, char *buf);
 int get_file_stats(const char *path, FILE_INFO *file_info);
 void set_file_stats(const char *path, const FILE_INFO *file_info);
 void fprint_file_info(FILE *stream, struct file_info *info);
+ssize_t recv_message(int sock, MESSAGE *msg);
+ssize_t send_message(int sock, MESSAGE *msg);
+
 #endif /* DROPBOX_UTIL_H */
