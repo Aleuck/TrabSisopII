@@ -33,6 +33,10 @@ void sync_server(){
   return;
 }
 
+void sendTimeServer(int client_socket) {
+
+}
+
 void receive_file(int client_socket, FILE_INFO file, struct user *user){
   char path[256];
   uint32_t received_total = 0;
@@ -301,6 +305,11 @@ void procces_command(struct user *current_user, MESSAGE user_msg, int client_soc
       logdebug("(procces_command) delete_file started.");
       delete_file(client_socket, f_info, current_user);
       logdebug("(procces_command) delete_file finished.");
+      break;
+    case CMD_TIME:
+      logdebug("(procces_command) send_time started.");
+      sendTimeServer(client_socket);
+      logdebug("(procces_command) send_time finished.");
 
   }
 }

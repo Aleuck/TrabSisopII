@@ -14,6 +14,7 @@
 #define CMD_LIST          3
 #define CMD_GET_SYNC_DIR  4
 #define CMD_DELETE        5
+#define CMD_TIME          6
 #define CMD_EXIT          9
 
 #define LOGIN_REQUEST    10

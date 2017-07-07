@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <pthread.h>
+#include <time.h>
 
 #include "linked_list.h"
 #include "list_dir.h"
@@ -21,6 +22,8 @@
 #ifndef MSG_SIZE
 
 #define MSG_SIZE 100
+
+#define REPLICA_SET_SIZE 3
 
 #endif
 
@@ -43,6 +46,10 @@ int create_dir_for(char *user_name) {
   return 0;
 }
 
+void getTimeServer(SESSION* user_session){
+
+}
+
 int connect_to_server(SESSION *user_session, const char *host, const char *port) {
   // create TCP socket
   user_session->connection = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
@@ -50,16 +57,37 @@ int connect_to_server(SESSION *user_session, const char *host, const char *port)
     fprintf(stderr, "Error: Could not create socket.\n");
     return 0;
   }
+  //Get Replica Ips from file
+  FILE* file = fopen("server_info.txt","r");
+  char *a[REPLICA_SET_SIZE * 2];
+  char line[256];
+  int i = 0;
+  while (fgets(line, sizeof(line), file) && i < REPLICA_SET_SIZE * 2) {
+      if(i%2 == 0){
+        //ip
+        a[i] = line;
+      }else{
+        //port
+        a[i] = line;
+      }
+      i++;
+  }
+  fclose(file);
 
   // Initialize
   memset((char *) &user_session->server, 0, sizeof(user_session->server));
   user_session->server.sin_addr.s_addr = inet_addr(host);
   user_session->server.sin_family = AF_INET;
   user_session->server.sin_port = htons(atoi(port));
-
-  if (connect(user_session->connection, (struct sockaddr *) &user_session->server, sizeof (user_session->server)) < 0) {
-    printf("Failed to connect to server.\n");
-    return -1;
+  i = 0;
+  while(connect(user_session->connection, (struct sockaddr *) &user_session->server, sizeof (user_session->server)) < 0) {
+    if (i >= REPLICA_SET_SIZE * 2){
+      return -1;
+    }
+    fprintf(stderr,"connecting to replica -> %d \n at address -> %s %s", i/2,a[i],a[i+1]);
+    user_session->server.sin_addr.s_addr = inet_addr(a[i]);
+    user_session->server.sin_port = htons(atoi(a[i+1]));
+    i += 2;
   }
   return 1;
 }
@@ -85,7 +113,7 @@ int login(SESSION *user_session) {
   }
   flogdebug("size_received : %d, response_code: %d\n",size_received, msg.code );
   if (msg.code == LOGIN_ACCEPT) {
-    printf("Login successful.\n");
+
     return 1;
   }
   if (server_response_byte == -1) {
