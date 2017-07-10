@@ -46,7 +46,21 @@ int create_dir_for(char *user_name) {
   return 0;
 }
 
-void getTimeServer(SESSION* user_session){
+time_t getTimeServer(SESSION* user_session){
+  time_t t0, t1, server_time, client_time;
+  MESSAGE msg = {0,0,{0}};
+
+  msg.code = CMD_TIME;
+  msg.length = 0;
+  time(&t0);
+  send_message(user_session->connection, &msg);
+  // get response
+  recv_message(user_session->connection, &msg);
+  time(&t1);
+  server_time = atol(msg.content);
+  client_time = server_time + (t1 - t0)/2;
+  return client_time;
+
 
 }
 

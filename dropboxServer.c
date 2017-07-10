@@ -34,7 +34,13 @@ void sync_server(){
 }
 
 void sendTimeServer(int client_socket) {
-
+  time_t server_time;
+  time(&server_time);
+  MESSAGE msg = {0,0,{0}};
+  msg.code = TRANSFER_TIME;
+  msg.length = sizeof(server_time);
+  sprintf(msg.content,"%ld", server_time);
+  send_message(client_socket, &msg);
 }
 
 void receive_file(int client_socket, FILE_INFO file, struct user *user){

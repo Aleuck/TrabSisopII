@@ -26,6 +26,7 @@
 #define TRANSFER_OK      22
 #define TRANSFER_END     23
 #define TRANSFER_ERROR   24
+#define TRANSFER_TIME    25
 
 #define FILE_OK          31
 #define FILE_DELETED     32
