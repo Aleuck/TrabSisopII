@@ -73,16 +73,16 @@ int connect_to_server(SESSION *user_session, const char *host, const char *port)
   }
   //Get Replica Ips from file
   FILE* file = fopen("server_info.txt","r");
-  char *a[REPLICA_SET_SIZE * 2];
+  char a[REPLICA_SET_SIZE * 2][256];
   char line[256];
   int i = 0;
   while (fgets(line, sizeof(line), file) && i < REPLICA_SET_SIZE * 2) {
       if(i%2 == 0){
         //ip
-        a[i] = line;
+        memcpy(a[i],line,sizeof(line));
       }else{
         //port
-        a[i] = line;
+        memcpy(a[i],line,sizeof(line));
       }
       i++;
   }
