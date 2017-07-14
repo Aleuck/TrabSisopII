@@ -11,7 +11,7 @@ LOGLEVEL := 2
 CC = gcc
 CFLAGS = -g -W -Wall -D LOGLEVEL=$(LOGLEVEL)
 LIBDIR =.
-LDFLAGS = -L$(LIBDIR) -pthread -lpthread
+LDFLAGS = -L$(LIBDIR) -pthread -lpthread -lssl -lcrypto
 SRC = dropboxServer.c dropboxClient.c
 OBJ = $(SRC:.c=.o)
 

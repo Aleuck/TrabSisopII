@@ -10,6 +10,8 @@
 #include <errno.h>
 #include <pthread.h>
 #include <time.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 #include "linked_list.h"
 #include "list_dir.h"
@@ -46,23 +48,43 @@ int create_dir_for(char *user_name) {
   return 0;
 }
 
-time_t getTimeServer(SESSION* user_session){
-  time_t t0, t1, server_time, client_time;
-  MESSAGE msg = {0,0,{0}};
+void init_sll(int socket){
 
-  msg.code = CMD_TIME;
-  msg.length = 0;
-  time(&t0);
-  send_message(user_session->connection, &msg);
-  // get response
-  recv_message(user_session->connection, &msg);
-  time(&t1);
-  server_time = atol(msg.content);
-  client_time = server_time + (t1 - t0)/2;
-  return client_time;
+	OpenSSL_add_all_algorithms();
+	SSL_library_init();
+	SSL_load_error_strings();
 
+	SSL_METHOD *method;
+	SSL_CTX *ctx;
+	SSL *ssl;
 
+	method = SSLv23_client_method();
+	ctx = SSL_CTX_new(method);
+	if(ctx == NULL){
+		ERR_print_errors_fp(stderr);
+		abort();	
+	}
+  ssl = SSL_new(ctx);
+   SSL_set_fd(ssl, socket);
+   if (SSL_connect(ssl) == -1)
+       ERR_print_errors_fp(stderr);
+   else {
+
+       X509 *cert;
+       char *line;
+       cert = SSL_get_peer_certificate(ssl);
+      if (cert != NULL) {
+         line = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
+           printf("Subject: %s\n", line);
+           free(line);
+           line = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
+           printf("Issuer: %s\n", line);
+    }
+  }
+	
 }
+
+
 
 int connect_to_server(SESSION *user_session, const char *host, const char *port) {
   // create TCP socket
@@ -172,6 +194,8 @@ void send_file(SESSION *user_session, char *file_path) {
   } else {
     // get file stats
     get_file_stats(file_path, &file_to_send);
+    sprintf(&file_to_send.last_modified, "%ld", getTimeServer(user_session));
+
     flogdebug("send file of size %d.", file_to_send.size);
     fprint_file_info(stdout, &file_to_send);
     // send request to send file

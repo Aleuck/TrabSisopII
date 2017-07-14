@@ -42,7 +42,7 @@ int get_file_stats(const char *path, FILE_INFO *file_info) {
 		/* not a regular file */
 		return -1;
 	}
-	sprintf(file_info->last_modified, "%li", file_stats.st_mtime);
+	//sprintf(file_info->last_modified, "%li", file_stats.st_mtime);
 	file_info->size = file_stats.st_size;
 	return 0;
 }

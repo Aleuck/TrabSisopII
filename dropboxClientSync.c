@@ -17,6 +17,24 @@
 /* reasonable guess as to size of 1024 events */
 #define BUF_LEN        (1024 * (EVENT_SIZE + 16))
 
+
+time_t getTimeServer(SESSION* user_session){
+  time_t t0, t1, server_time, client_time;
+  MESSAGE msg = {0,0,{0}};
+
+  msg.code = CMD_TIME;
+  msg.length = 0;
+  time(&t0);
+  send_message(user_session->connection, &msg);
+  // get response
+  recv_message(user_session->connection, &msg);
+  time(&t1);
+  server_time = atol(msg.content);
+  client_time = server_time + (t1 - t0)/2;
+  fprintf(stderr, "client time = %ld, server_time = %ld, t0 = %ld, t1 = %ld\n", client_time, server_time, t0, t1);
+  return client_time;
+}
+
 void *client_sync(void *session_arg) {
   SESSION *user_session = (SESSION *) session_arg;
   const char* home_dir = getenv ("HOME");
@@ -67,6 +85,9 @@ void *client_sync(void *session_arg) {
               // this is a dir, ignore
               break;
             }
+            sprintf(event_file.last_modified, "%ld", getTimeServer(user_session));
+            fprintf(stderr, "%s -> last_modified\n",event_file.last_modified);
+
             list_file = ll_getref(event_file.name, &user_session->files);
             if (list_file == NULL) {
               ll_put(event_file.name, &event_file.name, &user_session->files);
@@ -85,6 +106,10 @@ void *client_sync(void *session_arg) {
               // this is a dir, ignore
               break;
             }
+
+            sprintf(event_file.last_modified, "%ld", getTimeServer(user_session));
+            fprintf(stderr, "%s -> last_modified\n",event_file.last_modified);
+            
             list_file = ll_getref(event_file.name, &user_session->files);
             if (list_file == NULL) {
               ll_put(event_file.name, &event_file.name, &user_session->files);
