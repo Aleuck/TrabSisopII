@@ -33,6 +33,43 @@ void sync_server(){
   return;
 }
 
+void init_sll(int socket){
+
+	OpenSSL_add_all_algorithms();
+	SSL_library_init();
+	SSL_load_error_strings();
+
+	SSL_METHOD *method;
+	SSL_CTX *ctx;
+	SSL *ssl;
+
+	method = SSLv23_server_method();
+	ctx = SSL_CTX_new(method);
+	if(ctx == NULL){
+		ERR_print_errors_fp(stderr);
+		abort();
+	}
+
+   SSL_CTX_use_certificate_file(ctx, "CertFile.pem", 0);
+   SSL_CTX_use_PrivateKey_file(ctx, "KeyFile.pem", 0);
+
+   ssl = SSL_new(ctx);
+   SSL_set_fd(ssl, socket);
+
+
+   X509 *cert;
+   char *line;
+   cert	=	SSL_get_peer_certificate(ssl);
+   if	(cert	!=	NULL){
+   		line	=	X509_NAME_oneline(
+   		X509_get_subject_name(cert),0,0);
+   		printf(“Subject:	%s\n”,	line);
+   		free(line);
+			line	=	X509_NAME_oneline(X509_get_issuer_name(cert),0,0);
+   		printf(“Issuer:	%s\n”,	line);
+   		}
+}
+
 void sendTimeServer(int client_socket) {
   time_t server_time;
   time(&server_time);
