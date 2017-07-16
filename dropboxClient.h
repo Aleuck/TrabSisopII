@@ -3,6 +3,8 @@
 #include <pthread.h>
 #include <netinet/in.h>
 #include "linked_list.h"
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 #define FILE_INFO_BUFLEN (3*MAXNAME + 4)
 
@@ -11,6 +13,7 @@ typedef struct session {
   struct sockaddr_in server;
   struct linked_list files;
   int connection;    // tcp socket
+  SSL *ssl_connection;
   pthread_mutex_t connection_mutex;
   int keep_running;
 } SESSION;

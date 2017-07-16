@@ -11,6 +11,8 @@
 #include <errno.h>
 #include "dropboxUtil.h"
 #include "dropboxServer.h"
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 #include "logging.h"
 #include "user_login.h"
 #include "list_dir.h"
@@ -33,44 +35,17 @@ void sync_server(){
   return;
 }
 
-void init_sll(int socket){
+void init_ssl(){
 
 	OpenSSL_add_all_algorithms();
 	SSL_library_init();
 	SSL_load_error_strings();
+}
+void connect_ssl(){
 
-	SSL_METHOD *method;
-	SSL_CTX *ctx;
-	SSL *ssl;
-
-	method = SSLv23_server_method();
-	ctx = SSL_CTX_new(method);
-	if(ctx == NULL){
-		ERR_print_errors_fp(stderr);
-		abort();
-	}
-
-   SSL_CTX_use_certificate_file(ctx, "CertFile.pem", 0);
-   SSL_CTX_use_PrivateKey_file(ctx, "KeyFile.pem", 0);
-
-   ssl = SSL_new(ctx);
-   SSL_set_fd(ssl, socket);
-
-
-   X509 *cert;
-   char *line;
-   cert	=	SSL_get_peer_certificate(ssl);
-   if	(cert	!=	NULL){
-   		line	=	X509_NAME_oneline(
-   		X509_get_subject_name(cert),0,0);
-   		printf(“Subject:	%s\n”,	line);
-   		free(line);
-			line	=	X509_NAME_oneline(X509_get_issuer_name(cert),0,0);
-   		printf(“Issuer:	%s\n”,	line);
-   		}
 }
 
-void sendTimeServer(int client_socket) {
+void sendTimeServer(SSL *client_socket) {
   time_t server_time;
   time(&server_time);
   MESSAGE msg = {0,0,{0}};
@@ -80,7 +55,7 @@ void sendTimeServer(int client_socket) {
   send_message(client_socket, &msg);
 }
 
-void receive_file(int client_socket, FILE_INFO file, struct user *user){
+void receive_file(SSL *client_socket, FILE_INFO file, struct user *user){
   char path[256];
   uint32_t received_total = 0;
   int32_t received_size = 0, aux_print = 0;
@@ -155,7 +130,7 @@ void receive_file(int client_socket, FILE_INFO file, struct user *user){
   pthread_mutex_unlock(user->cli_mutex);
 }
 
-void send_file(int client_socket, FILE_INFO file, struct user *user){
+void send_file(SSL *client_socket, FILE_INFO file, struct user *user){
   char path[512];
   MESSAGE msg = {0,0,{0}};
   int32_t send_size, aux_print;
@@ -213,7 +188,7 @@ void send_file(int client_socket, FILE_INFO file, struct user *user){
   return;
 }
 
-void delete_file(int client_socket, FILE_INFO file, struct user *user) {
+void delete_file(SSL *client_socket, FILE_INFO file, struct user *user) {
   char path[512];
   MESSAGE msg = {0,0,{0}};
   //int32_t send_size, aux_print;
@@ -230,7 +205,7 @@ void delete_file(int client_socket, FILE_INFO file, struct user *user) {
   pthread_mutex_unlock(user->cli_mutex);
 }
 
-void send_file_list(int client_socket, struct user *user) {
+void send_file_list(SSL *client_socket, struct user *user) {
   struct ll_item *item;
   FILE_INFO *info;
   MESSAGE msg;
@@ -311,6 +286,8 @@ int get_socket(int port){
 }
 
 int connect_to_client(int server_sock){
+
+  
   int client_sock;
   struct sockaddr_in client_info;
   socklen_t sock_size;
@@ -318,12 +295,53 @@ int connect_to_client(int server_sock){
   sock_size = sizeof(struct sockaddr_in);
   memset((char *) &client_info, 0, sock_size);
 
-  if((client_sock = accept(server_sock,(struct sockaddr *)&client_info, &sock_size)) < 0){
+
+
+   if((client_sock = accept(server_sock,(struct sockaddr *)&client_info, &sock_size)) < 0){
     return -1;
   }
+
+
   return client_sock;
 }
-void procces_command(struct user *current_user, MESSAGE user_msg, int client_socket){
+
+SSL *ssl_connect(int client_sock){
+  SSL_METHOD *method;
+  SSL_CTX *ctx;
+  SSL *ssl;
+  
+    method = SSLv23_server_method();
+  ctx = SSL_CTX_new(method);
+  if(ctx == NULL){
+    ERR_print_errors_fp(stderr);
+    abort();
+  }
+
+
+   SSL_CTX_use_certificate_file(ctx, "CertFile.pem", SSL_FILETYPE_PEM);
+   SSL_CTX_use_PrivateKey_file(ctx, "KeyFile.pem", SSL_FILETYPE_PEM);
+
+   ssl = SSL_new(ctx);
+   SSL_set_fd(ssl, client_sock);
+
+   SSL_accept(ssl);
+
+   X509 *cert;
+   char *line;
+   cert = SSL_get_peer_certificate(ssl);
+   if (cert !=  NULL){
+      line  = X509_NAME_oneline(
+      X509_get_subject_name(cert),0,0);
+      fprintf(stderr,"Subject:  %s\n",  line);
+      free(line);
+      line  = X509_NAME_oneline(X509_get_issuer_name(cert),0,0);
+      fprintf(stderr,"Issuer: %s\n",  line);
+      }
+   
+   return ssl;
+}
+
+void procces_command(struct user *current_user, MESSAGE user_msg, SSL *client_socket){
   FILE_INFO f_info;
   switch(user_msg.code){
     case CMD_DOWNLOAD:
@@ -361,19 +379,25 @@ void *treat_client(void *client_sock){
   struct user *new_user;
   MESSAGE client_msg = {0,0,{0}};
   MESSAGE response = {0,0,{0}};
-  fprintf(stderr, "%d\n", socket);
 
-  if(login_user(socket, &new_user) < 0){
+  SSL *ssl = ssl_connect(socket);
+
+  // SSL_write(ssl,"Hi :3\n",6); 
+
+  if(login_user(socket, &new_user, ssl) < 0){
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
     close(socket);
     return (void*) -1;
   }
   response.code = LOGIN_ACCEPT;
-  sent = send_message(socket, &response);
-  fprintf(stderr, "sent: %d\n", sent);
-  while(recv_message(socket, &client_msg) != 0){
-    procces_command(new_user, client_msg, socket);
+  sent = send_message(ssl, &response);
+  while(recv_message(ssl, &client_msg) != 0){
+    procces_command(new_user, client_msg, ssl);
   }
   logout_user(socket ,new_user);
+  SSL_shutdown(ssl);
+  SSL_free(ssl);
   close(socket);
   return 0;
 }
@@ -383,7 +407,7 @@ int main(int argc, char* argv[]) {
   int server_sock, client_sock;
   ul_init();
   create_server_dir();
-
+  init_ssl();
   loginfo("server started...");
   flogdebug("%d arguments given", argc);
   flogdebug("program name is %s", argv[0]);

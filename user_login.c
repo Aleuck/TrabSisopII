@@ -44,7 +44,7 @@ static void rand_str(char *dest, size_t length) {
 	*dest = '\0';
 }
 
-static void receive_username(int sockfd, char username[MAXNAME]) {
+static void receive_username(SSL *sockfd, char username[MAXNAME]) {
 	MESSAGE msg;
 	memset(&msg, 0, sizeof(msg));
 	int received_size = recv_message(sockfd, &msg);
@@ -79,10 +79,10 @@ int create_server_dir_for(const char *username) {
   return 0;
 }
 
-int login_user(int sockfd, struct user **user) {
+int login_user(int sockfd, struct user **user, SSL *user_ssl) {
 	char username[MAXNAME];
 	char path[256];
-	receive_username(sockfd, username);
+	receive_username(user_ssl, username);
 	pthread_mutex_lock(&users_mutex);
 
 	if (users.length >= MAX_CLIENTS) {

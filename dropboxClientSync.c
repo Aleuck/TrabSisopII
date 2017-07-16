@@ -25,9 +25,9 @@ time_t getTimeServer(SESSION* user_session){
   msg.code = CMD_TIME;
   msg.length = 0;
   time(&t0);
-  send_message(user_session->connection, &msg);
+  send_message(user_session->ssl_connection, &msg);
   // get response
-  recv_message(user_session->connection, &msg);
+  recv_message(user_session->ssl_connection, &msg);
   time(&t1);
   server_time = atol(msg.content);
   client_time = server_time + (t1 - t0)/2;

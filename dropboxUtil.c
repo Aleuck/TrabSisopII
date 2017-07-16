@@ -6,6 +6,8 @@
 #include <arpa/inet.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 #include <sys/time.h>
 #include <utime.h>
 
@@ -54,7 +56,8 @@ void set_file_stats(const char *path, const FILE_INFO *file_info) {
 	utime(path, &mod_stats);
 }
 
-ssize_t send_message(int sock, MESSAGE *msg) {
+ssize_t send_message(SSL *sock, MESSAGE *msg) {
+	//fprintf(stderr, "sending msg\n");
 	char buffer[MSG_BUFFER_SIZE];
 	char *cur = buffer;
 	int bytes_sent;
@@ -67,7 +70,7 @@ ssize_t send_message(int sock, MESSAGE *msg) {
 	memcpy(cur, msg->content, MSG_MAX_LENGTH);
 	cur = buffer;
 	while (total_sent < MSG_BUFFER_SIZE) {
-		bytes_sent = send(sock, cur, MSG_BUFFER_SIZE - total_sent, 0);
+		bytes_sent = SSL_write(sock, cur, MSG_BUFFER_SIZE - total_sent);
 		if (bytes_sent == 0) {
 			return 0;
 		}
@@ -80,13 +83,14 @@ ssize_t send_message(int sock, MESSAGE *msg) {
 	return total_sent;
 }
 
-ssize_t recv_message(int sock, MESSAGE *msg) {
+ssize_t recv_message(SSL *sock, MESSAGE *msg) {
+	//fprintf(stderr, "recv msg\n");
 	char buffer[MSG_BUFFER_SIZE];
 	char *cur = buffer;
 	int bytes_received = 0;
 	ssize_t total_received = 0;
 	while (bytes_received < MSG_BUFFER_SIZE) {
-		bytes_received = recv(sock, cur, MSG_BUFFER_SIZE - total_received,0);
+		bytes_received = SSL_read(sock, cur, MSG_BUFFER_SIZE - total_received);
 		if (bytes_received == 0) {
 			return 0;
 		}

@@ -48,40 +48,11 @@ int create_dir_for(char *user_name) {
   return 0;
 }
 
-void init_sll(int socket){
+void init_ssl(){
 
 	OpenSSL_add_all_algorithms();
 	SSL_library_init();
 	SSL_load_error_strings();
-
-	SSL_METHOD *method;
-	SSL_CTX *ctx;
-	SSL *ssl;
-
-	method = SSLv23_client_method();
-	ctx = SSL_CTX_new(method);
-	if(ctx == NULL){
-		ERR_print_errors_fp(stderr);
-		abort();	
-	}
-  ssl = SSL_new(ctx);
-   SSL_set_fd(ssl, socket);
-   if (SSL_connect(ssl) == -1)
-       ERR_print_errors_fp(stderr);
-   else {
-
-       X509 *cert;
-       char *line;
-       cert = SSL_get_peer_certificate(ssl);
-      if (cert != NULL) {
-         line = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
-           printf("Subject: %s\n", line);
-           free(line);
-           line = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
-           printf("Issuer: %s\n", line);
-    }
-  }
-	
 }
 
 
@@ -125,10 +96,50 @@ int connect_to_server(SESSION *user_session, const char *host, const char *port)
     user_session->server.sin_port = htons(atoi(a[i+1]));
     i += 2;
   }
+
+  SSL_METHOD *method;
+  SSL_CTX *ctx;
+  SSL *ssl;
+
+  method = SSLv23_client_method();
+  ctx = SSL_CTX_new(method);
+  if(ctx == NULL){
+    ERR_print_errors_fp(stderr);
+    abort();  
+  }
+  ssl = SSL_new(ctx);
+   SSL_set_fd(ssl, user_session->connection);
+   fprintf(stderr, "1\n");
+   if (SSL_connect(ssl) == -1){
+        fprintf(stderr, "2\n");
+       ERR_print_errors_fp(stderr);
+     }
+   else {
+       fprintf(stderr, "3\n");
+       X509 *cert;
+       char *line;
+       cert = SSL_get_peer_certificate(ssl);
+      if (cert != NULL) {
+         line = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
+           printf("Subject: %s\n", line);
+           free(line);
+           line = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
+           printf("Issuer: %s\n", line);
+    }
+  }
+  user_session->ssl_connection = ssl;
+  // char buffer[200];
+  // int nBytestToRead = 6;
+  // fprintf(stderr, "foi\n");
+  // SSL_read(ssl,(char *)buffer,nBytestToRead);
+  // fprintf(stderr, "%s\n",buffer);
+  // fprintf(stderr, "foi\n");
   return 1;
 }
 
 void disconnect_from_server(SESSION *user_session) {
+  SSL_shutdown(user_session->ssl_connection);
+  SSL_free(user_session->ssl_connection);
   close(user_session->connection);
 };
 
@@ -140,9 +151,9 @@ int login(SESSION *user_session) {
   strcpy(msg.content, user_session->userid);
   msg.length = strlen(user_session->userid)+1;
   msg.code = LOGIN_REQUEST;
-  send_message(user_session->connection, &msg);
+  send_message(user_session->ssl_connection, &msg);
 
-  if ((size_received = recv_message(user_session->connection, &msg)) == 0){
+  if ((size_received = recv_message(user_session->ssl_connection, &msg)) == 0){
     flogdebug("size_received : %d", size_received);
     printf("Server cap reached\n");
     return 0;
@@ -202,9 +213,9 @@ void send_file(SESSION *user_session, char *file_path) {
     serialize_file_info(&file_to_send ,msg.content);
     msg.code = CMD_UPLOAD;
     msg.length = FILE_INFO_BUFLEN;
-    send_message(user_session->connection, &msg);
+    send_message(user_session->ssl_connection, &msg);
     // get response
-    recv_message(user_session->connection, &msg);
+    recv_message(user_session->ssl_connection, &msg);
     if (msg.code != TRANSFER_ACCEPT) {
       // server refused
       flogwarning("server refused file.");
@@ -215,7 +226,7 @@ void send_file(SESSION *user_session, char *file_path) {
         msg.code = TRANSFER_OK;
         send_size = fread(msg.content, 1, sizeof(msg.content), file_handler);
         msg.length = send_size;
-        aux_print = send_message(user_session->connection, &msg);
+        aux_print = send_message(user_session->ssl_connection, &msg);
         if (aux_print == -1) {
           //TODO: error
           logerror("couldn't send file completely.");
@@ -231,7 +242,7 @@ void send_file(SESSION *user_session, char *file_path) {
         msg.code = TRANSFER_END;
         send_size = fread(msg.content, 1, (int) file_to_send.size - total_sent, file_handler);
         msg.length = send_size;
-        aux_print = send_message(user_session->connection, &msg);
+        aux_print = send_message(user_session->ssl_connection, &msg);
         if (aux_print == -1) {
           //TODO: error
           logerror("couldn't send file completely.");
@@ -277,9 +288,9 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   msg.code = CMD_DOWNLOAD;
   msg.length = FILE_INFO_BUFLEN;
   serialize_file_info(&file_to_get, msg.content);
-  aux_print = send_message(user_session->connection, &msg);
+  aux_print = send_message(user_session->ssl_connection, &msg);
   sleep(1);
-  aux_print = recv_message(user_session->connection, &msg);
+  aux_print = recv_message(user_session->ssl_connection, &msg);
   flogdebug("MSGCODE %d\nMSGLEN %d\nMSG:\n%0.256s", msg.code, msg.length,msg.content);
   if (msg.code != TRANSFER_ACCEPT) {
     fclose(file_handler);
@@ -293,7 +304,7 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   logdebug("(get) start to receive file.");
   flogdebug("(get) size_buffer = %u.", sizeof(msg.content));
   while (file_to_get.size - received_total > sizeof(msg.content)){
-    aux_print = recv_message(user_session->connection, &msg);
+    aux_print = recv_message(user_session->ssl_connection, &msg);
     if (aux_print <= 0) {
       // conexao perdida
       fclose(file_handler);
@@ -316,7 +327,7 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
     flogdebug("(get) %d/%u (%d to go)", received_total, file_to_get.size, (int) file_to_get.size - received_total);
   }
   if (received_total < file_to_get.size) {
-    aux_print = recv_message(user_session->connection, &msg);
+    aux_print = recv_message(user_session->ssl_connection, &msg);
     if (aux_print <= 0) {
       // conexao perdida
       fclose(file_handler);
@@ -352,7 +363,7 @@ void delete_server_file(SESSION *user_session, char *filename) {
   msg.length = sizeof(FILE_INFO);
   serialize_file_info(&file_to_delete, msg.content);
   pthread_mutex_lock(&(user_session->connection_mutex));
-  aux_print = send_message(user_session->connection, &msg);
+  aux_print = send_message(user_session->ssl_connection, &msg);
   pthread_mutex_unlock(&(user_session->connection_mutex));
 }
 
@@ -366,11 +377,11 @@ void request_file_list(SESSION *user_session, struct linked_list *server_list, s
   MESSAGE msg = {0,0,{0}};
   msg.code = CMD_LIST;
 
-	int send_len = send_message(user_session->connection, &msg);
+	int send_len = send_message(user_session->ssl_connection, &msg);
 	if (send_len < 0) goto socket_error;
 	else if (send_len == 0) goto socket_closed;
 
-	int recv_len = recv_message(user_session->connection, &msg);
+	int recv_len = recv_message(user_session->ssl_connection, &msg);
 	if (recv_len < 0) goto socket_error;
 	else if (recv_len == 0) goto socket_closed;
   if (msg.code != TRANSFER_ACCEPT) {
@@ -381,7 +392,7 @@ void request_file_list(SESSION *user_session, struct linked_list *server_list, s
 	uint32_t i;
 	struct file_info info;
 	for (i = 0; i < num_files; i++) {
-		int recv_len = recv_message(user_session->connection, &msg);
+		int recv_len = recv_message(user_session->ssl_connection, &msg);
 		if (recv_len < 0) goto socket_error;
 		else if (recv_len == 0) goto socket_closed;
 
@@ -410,9 +421,9 @@ socket_closed:
 
 int main(int argc, char* argv[]) {
   pthread_t thread_cli, thread_sync;
-  SESSION user_session = {{0},{0},{0},0,{{0}},0};
+  SESSION user_session = {{0},{0},{0},0,0,{{0}},0};
   int rc;
-
+  init_ssl();
   if (argc < 4) {
     fprintf(stderr, "Usage: %s <fulano> <host> <port>\n", argv[0]);
     exit(-1);

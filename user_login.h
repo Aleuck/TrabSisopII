@@ -18,7 +18,7 @@ void ul_init();
  * directory mutex in `mutex`.
  *
  * Return 0 if successful, or -1 if login was denied. */
-int login_user(int sockfd, struct user **user);
+int login_user(int sockfd, struct user **user, SSL *user_ssl);
 
 /* Log out user with `username` and free resources associated with that
  * user if he's not logged in from any other devices. */
