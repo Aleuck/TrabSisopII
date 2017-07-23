@@ -22,27 +22,26 @@
 #define  send_file_OPTION 1
 #define  recive_file_OPTION 2
 #define MAXUSER 10
+#define MAXINPUT 256
 
 struct handler_info {
   int index;
   int device;
 };
 
+int keep_running = 1;
 struct client user_list[MAXUSER];
+server_t this_server = { 1, 0, 0, 0, 1, 0, {0} };
+server_t master_server = { 1, 0, 0, 0, 1, 0, {0} };
+struct linked_list server_list = { 0, 0, 0 };
+uint32_t last_serv_id = 1;
 
-void sync_server(){
-
-  return;
-}
+pthread_mutex_t server_list_mutex = {{0}};
 
 void init_ssl(){
-
 	OpenSSL_add_all_algorithms();
 	SSL_library_init();
 	SSL_load_error_strings();
-}
-void connect_ssl(){
-
 }
 
 void sendTimeServer(SSL *client_socket) {
@@ -205,6 +204,8 @@ void delete_file(SSL *client_socket, FILE_INFO file, struct user *user) {
   pthread_mutex_unlock(user->cli_mutex);
 }
 
+void send_server_list(SSL *client_socket) {}
+
 void send_file_list(SSL *client_socket, struct user *user) {
   struct ll_item *item;
   FILE_INFO *info;
@@ -272,8 +273,10 @@ int get_socket(int port){
     return -1;
   }
 
-  server_addr.sin_addr.s_addr = INADDR_ANY;
-  server_addr.sin_port = htons(port);
+  this_server.addr = INADDR_ANY;
+  this_server.port = htons(port);
+  server_addr.sin_addr.s_addr = this_server.addr;
+  server_addr.sin_port = this_server.port;
   server_addr.sin_family = AF_INET;
 
   if (bind(server_sock, (struct sockaddr *)&server_addr, sock_size) < 0) {
@@ -285,23 +288,37 @@ int get_socket(int port){
   return server_sock;
 }
 
-int connect_to_client(int server_sock){
+connect_to_master(const char *host, const char *port) {
+  MESSAGE msg = {0, 0, {0}};
 
-  
+  master_server.connection = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+  if (master_server.connection < 0) {
+    logerror("(connect_to_master) Could not create socket.");
+    return 0;
+  }
+  memset((char*)&master_server.sockaddr, 0, sizeof(master_server.sockaddr));
+  master_server.sockaddr.sin_addr.s_addr = inet_addr(host);
+  master_server.sockaddr.sin_family = AF_INET;
+  master_server.sockaddr.sin_port = htons(atoi(port));
+  if (connect(master_server.connection, (struct sockaddr *) &master_server.sockaddr, sizeof(master_server.sockaddr)) < 0) {
+    logerror("(connect_to_master) Could not connect to master.");
+    return 0;
+  }
+  msg.code = MASTER_CONNECT;
+  msg.length = 1;
+  serialize_server_info(&master_server, msg.content);
+  return 1;
+}
+
+int connect_to_client(int server_sock){
   int client_sock;
   struct sockaddr_in client_info;
   socklen_t sock_size;
-
   sock_size = sizeof(struct sockaddr_in);
   memset((char *) &client_info, 0, sock_size);
-
-
-
-   if((client_sock = accept(server_sock,(struct sockaddr *)&client_info, &sock_size)) < 0){
+  if((client_sock = accept(server_sock,(struct sockaddr *)&client_info, &sock_size)) < 0){
     return -1;
   }
-
-
   return client_sock;
 }
 
@@ -371,7 +388,8 @@ void procces_command(struct user *current_user, MESSAGE user_msg, SSL *client_so
       logdebug("(procces_command) send_time started.");
       sendTimeServer(client_socket);
       logdebug("(procces_command) send_time finished.");
-
+    default:
+      logdebug("(procces_command) unreconized message.");
   }
 }
 void *treat_client(void *client_sock){
@@ -390,10 +408,17 @@ void *treat_client(void *client_sock){
     close(socket);
     return (void*) -1;
   }
-  response.code = LOGIN_ACCEPT;
-  sent = send_message(ssl, &response);
-  while(recv_message(ssl, &client_msg) != 0){
-    procces_command(new_user, client_msg, ssl);
+  if (this_server.is_master) {
+    response.code = LOGIN_ACCEPT;
+    sent = send_message(ssl, &response);
+    while(recv_message(ssl, &client_msg) != 0){
+      procces_command(new_user, client_msg, ssl);
+    }
+  } else {
+    response.code = SERVER_REDIRECT;
+    response.length = 1;
+    serialize_server_info(&master_server, response.content);
+    sent = send_message(ssl, &response);
   }
   logout_user(socket ,new_user);
   SSL_shutdown(ssl);
@@ -402,6 +427,59 @@ void *treat_client(void *client_sock){
   return 0;
 }
 
+int parse_command(char *command) {
+  if (0 == strcmp(command, "conmaster" )) return MASTER_CONNECT;
+  if (0 == strcmp(command, "servlist"  )) return CMD_SERV_LIST;
+  if (0 == strcmp(command, "exit"      )) return CMD_EXIT;
+  return CMD_UNDEFINED;
+}
+
+void *server_cli() {
+  char command[MAXINPUT];
+  char *comm, *ip;
+  while (1) {
+    printf("\n >> ");
+    fgets(command, MAXINPUT, stdin);
+    trim(command);
+    if (strlen(command) == 0) continue;
+    comm = strtok(command, " \t\n");
+    switch (parse_command(comm)) {
+      case MASTER_CONNECT:
+        ip = strtok(NULL, " \t\n");
+        connect_to_master(ip, REPLIC_PORT);
+        break;
+      case CMD_SERV_LIST:
+        break;
+      case CMD_EXIT:
+        break;
+    }
+  }
+}
+void *heartbeat() {
+  struct ll_item *replic = server_list.first;
+  while (replic != NULL) {
+
+    replic = replic->next;
+  }
+}
+void *server_sync() {
+  while (1) {
+    while (this_server.is_master) {
+      // I'M MASTER!
+      logdebug("I'm master.");
+      sleep(5);
+    }
+    while (!this_server.is_master) {
+      // I'M SLAVE!
+      logdebug("I'm slave.");
+      sleep(5);
+    }
+  }
+}
+
+void *replication() {
+
+}
 
 int main(int argc, char* argv[]) {
   int server_sock, client_sock;
@@ -416,25 +494,25 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "Usage: %s <port>\n", argv[0]);
     exit(-1);
   }
-
-
+  this_server.port = atoi(argv[1]);
   // Initialize
   server_sock = get_socket(atoi(argv[1]));
+  ll_init(sizeof(server_t), &server_list);
 
+  pthread_t server_sync_thread;
+  pthread_t server_cli_thread;
+  pthread_create(&server_sync_thread, NULL, server_sync, NULL);
+  pthread_create(&server_cli_thread, NULL, server_cli, NULL);
 
   // Accept
-  while(1) {
+  while(keep_running) {
     client_sock = connect_to_client(server_sock);
     if(client_sock > 0){
-      pthread_t client_thread;
+      pthread_t *client_thread = malloc(sizeof(pthread_t));
       int *aux_sock = malloc(sizeof(int));
       *aux_sock = client_sock;
-      pthread_create(&client_thread, NULL, treat_client,(void *)aux_sock);
+      pthread_create(client_thread, NULL, treat_client,(void *)aux_sock);
     }
-  }
-  if (client_sock < 0) {
-    perror("accept failed");
-    return 1;
   }
   exit(0);
 }

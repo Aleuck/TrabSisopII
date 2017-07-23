@@ -34,6 +34,46 @@ void deserialize_file_info(struct file_info *info, char *buf) {
 	info->size = ntohl(size);
 }
 
+void serialize_server_info(server_t *info, char *buf) {
+	// id
+	uint32_t id = htonl(info->id);
+	memcpy(buf, (char *)&id, sizeof(uint32_t));
+	buf += sizeof(uint32_t);
+	// priority
+	uint32_t priority = htonl(info->priority);
+	memcpy(buf, (char *)&priority, sizeof(uint32_t));
+	buf += sizeof(uint32_t);
+	// addr
+	memcpy(buf, (char *)&info->addr, sizeof(in_addr_t));
+	buf += sizeof(in_addr_t);
+	// port
+	memcpy(buf, (char *)&info->port, sizeof(in_port_t));
+	buf += sizeof(in_port_t);
+	// is_master
+	*buf = info->is_master;
+}
+
+void deserialize_server_info(server_t *info, char *buf) {
+	// id
+	uint32_t id;
+	memcpy((char *)&id, buf, sizeof(uint32_t));
+	info->id = ntohl(id);
+	buf += sizeof(uint32_t);
+	// priority
+	uint32_t priority;
+	memcpy((char *)&priority, buf, sizeof(uint32_t));
+	info->priority = ntohl(priority);
+	buf += sizeof(uint32_t);
+	// addr
+	memcpy((char *)&info->addr, buf, sizeof(in_addr_t));
+	buf += sizeof(in_addr_t);
+	// port
+	memcpy((char *)&info->port, buf, sizeof(in_port_t));
+	buf += sizeof(in_port_t);
+	// is_master
+	info->is_master = *buf;
+}
+
 int get_file_stats(const char *path, FILE_INFO *file_info) {
 	struct stat file_stats;
 	if (stat(path, &file_stats) == -1) {
@@ -113,4 +153,21 @@ ssize_t recv_message(SSL *sock, MESSAGE *msg) {
 
 void fprint_file_info(FILE *stream, struct file_info *info) {
 	fprintf(stream, " `%20s`  size: %9d   mod: %10li\n", info->name, info->size, atol(info->last_modified));
+}
+
+void trim(char *str) {
+  int start = 0;
+  int cur = 0;
+  int last_not_space = 0;
+  int i = 0;
+  while (isspace(str[i])) i++;
+  if (str[i] == 0){
+    str[start] = 0;
+    return;
+  }
+  while (str[i] != 0) {
+    if (!isspace(str[i])) last_not_space = cur;
+    str[cur++] = str[i++];
+  }
+  str[last_not_space + 1] = 0;
 }

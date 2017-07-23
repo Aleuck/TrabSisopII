@@ -8,6 +8,8 @@
 #define MAXFILES 100
 #define MAX_CLIENTS 10
 
+#define REPLIC_PORT "2137"
+
 struct client {
   int devices[2];
   char userid[MAXNAME];

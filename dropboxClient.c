@@ -159,9 +159,14 @@ int login(SESSION *user_session) {
     return 0;
   }
   flogdebug("size_received : %d, response_code: %d\n",size_received, msg.code );
+  switch (msg.code) {
+    case LOGIN_ACCEPT:
+      return 1;
+    case SERVER_REDIRECT:
+      //TODO
+      return SERVER_REDIRECT;
+  }
   if (msg.code == LOGIN_ACCEPT) {
-
-    return 1;
   }
   if (server_response_byte == -1) {
     printf("Too many connections\n");

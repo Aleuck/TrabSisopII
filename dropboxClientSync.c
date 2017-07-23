@@ -77,6 +77,7 @@ void *client_sync(void *session_arg) {
         event = (struct inotify_event *) &buf[i];
         switch (event->mask) {
           case IN_CREATE:
+          case IN_MOVED_TO:
             flogdebug("(inotify) created %s (%u)\n", event->name, event->len);
             memset(&event_file,0,sizeof(FILE_INFO));
             strcpy(event_file.name, event->name);
@@ -121,6 +122,7 @@ void *client_sync(void *session_arg) {
             flogdebug("(inotify) finished send_file %s (%u)\n", event->name, event->len);
             break;
           case IN_DELETE:
+          case IN_MOVED_FROM:
             flogdebug("(inotify) deleted %s (%u)\n", event->name, event->len);
             sprintf(file_path, "%s/%s",sync_dir_path, event->name);
             delete_server_file(user_session, event->name);

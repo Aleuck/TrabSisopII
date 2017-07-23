@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include "logging.h"
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -17,6 +18,7 @@
 #define CMD_GET_SYNC_DIR  4
 #define CMD_DELETE        5
 #define CMD_TIME          6
+#define CMD_SERV_LIST     7
 #define CMD_EXIT          9
 
 #define LOGIN_REQUEST    10
@@ -33,9 +35,20 @@
 #define FILE_OK          31
 #define FILE_DELETED     32
 
+#define SERVER_REDIRECT  40
+
+#define MASTER_CONNECT   50
+#define MASTER_ACCEPT    51
+#define MASTER_DECLINE   52
+
+#define STATUS_DEAD       0
+#define STATUS_PDEAD      1
+#define STATUS_ALIVE      2
+
 #define MSG_MAX_LENGTH  1250
 #define MSG_BUFFER_SIZE (1 + 4 + MSG_MAX_LENGTH)
 
+#define SERV_INFO_LEN = 15
 
 #define FILE_INFO_BUFLEN (3*MAXNAME + 4)
 
@@ -56,12 +69,25 @@ typedef struct message {
   char content[MSG_MAX_LENGTH];
 } MESSAGE;
 
+typedef struct server {
+  uint32_t id;
+  uint32_t priority;
+  in_addr_t addr;
+  in_port_t port;
+  char is_master;
+  int connection;
+  struct sockaddr_in sockaddr;
+} server_t;
+
 void serialize_file_info(struct file_info *info, char *buf);
 void deserialize_file_info(struct file_info *info, char *buf);
+void serialize_server_info(server_t *info, char *buf);
+void deserialize_server_info(server_t *info, char *buf);
 int get_file_stats(const char *path, FILE_INFO *file_info);
 void set_file_stats(const char *path, const FILE_INFO *file_info);
 void fprint_file_info(FILE *stream, struct file_info *info);
 ssize_t recv_message(SSL *sock, MESSAGE *msg);
 ssize_t send_message(SSL *sock, MESSAGE *msg);
+void trim(char *str);
 
 #endif /* DROPBOX_UTIL_H */
