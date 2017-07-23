@@ -326,8 +326,8 @@ SSL *ssl_connect(int client_sock){
   SSL_METHOD *method;
   SSL_CTX *ctx;
   SSL *ssl;
-  
-    method = SSLv23_server_method();
+
+  method = SSLv23_server_method();
   ctx = SSL_CTX_new(method);
   if(ctx == NULL){
     ERR_print_errors_fp(stderr);
@@ -335,27 +335,27 @@ SSL *ssl_connect(int client_sock){
   }
 
 
-   SSL_CTX_use_certificate_file(ctx, "CertFile.pem", SSL_FILETYPE_PEM);
-   SSL_CTX_use_PrivateKey_file(ctx, "KeyFile.pem", SSL_FILETYPE_PEM);
+  SSL_CTX_use_certificate_file(ctx, "CertFile.pem", SSL_FILETYPE_PEM);
+  SSL_CTX_use_PrivateKey_file(ctx, "KeyFile.pem", SSL_FILETYPE_PEM);
 
-   ssl = SSL_new(ctx);
-   SSL_set_fd(ssl, client_sock);
+  ssl = SSL_new(ctx);
+  SSL_set_fd(ssl, client_sock);
 
-   SSL_accept(ssl);
+  SSL_accept(ssl);
 
-   X509 *cert;
-   char *line;
-   cert = SSL_get_peer_certificate(ssl);
-   if (cert !=  NULL){
-      line  = X509_NAME_oneline(
-      X509_get_subject_name(cert),0,0);
-      fprintf(stderr,"Subject:  %s\n",  line);
-      free(line);
-      line  = X509_NAME_oneline(X509_get_issuer_name(cert),0,0);
-      fprintf(stderr,"Issuer: %s\n",  line);
-      }
-   
-   return ssl;
+  X509 *cert;
+  char *line;
+  cert = SSL_get_peer_certificate(ssl);
+  if (cert !=  NULL){
+    line  = X509_NAME_oneline(
+    X509_get_subject_name(cert),0,0);
+    fprintf(stderr,"Subject:  %s\n",  line);
+    free(line);
+    line  = X509_NAME_oneline(X509_get_issuer_name(cert),0,0);
+    fprintf(stderr,"Issuer: %s\n",  line);
+  }
+
+  return ssl;
 }
 
 void procces_command(struct user *current_user, MESSAGE user_msg, SSL *client_socket){
@@ -400,7 +400,7 @@ void *treat_client(void *client_sock){
 
   SSL *ssl = ssl_connect(socket);
 
-  // SSL_write(ssl,"Hi :3\n",6); 
+  // SSL_write(ssl,"Hi :3\n",6);
 
   if(login_user(socket, &new_user, ssl) < 0){
     SSL_shutdown(ssl);

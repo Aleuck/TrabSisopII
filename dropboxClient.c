@@ -49,7 +49,6 @@ int create_dir_for(char *user_name) {
 }
 
 void init_ssl(){
-
 	OpenSSL_add_all_algorithms();
 	SSL_library_init();
 	SSL_load_error_strings();
@@ -87,7 +86,7 @@ int connect_to_server(SESSION *user_session, const char *host, const char *port)
   user_session->server.sin_family = AF_INET;
   user_session->server.sin_port = htons(atoi(port));
   i = 0;
-  while(connect(user_session->connection, (struct sockaddr *) &user_session->server, sizeof (user_session->server)) < 0) {
+  while (connect(user_session->connection, (struct sockaddr *) &user_session->server, sizeof (user_session->server)) < 0) {
     if (i >= REPLICA_SET_SIZE * 2){
       return -1;
     }
@@ -105,26 +104,25 @@ int connect_to_server(SESSION *user_session, const char *host, const char *port)
   ctx = SSL_CTX_new(method);
   if(ctx == NULL){
     ERR_print_errors_fp(stderr);
-    abort();  
+    abort();
   }
   ssl = SSL_new(ctx);
-   SSL_set_fd(ssl, user_session->connection);
-   fprintf(stderr, "1\n");
-   if (SSL_connect(ssl) == -1){
-        fprintf(stderr, "2\n");
-       ERR_print_errors_fp(stderr);
-     }
-   else {
-       fprintf(stderr, "3\n");
-       X509 *cert;
-       char *line;
-       cert = SSL_get_peer_certificate(ssl);
-      if (cert != NULL) {
-         line = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
-           printf("Subject: %s\n", line);
-           free(line);
-           line = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
-           printf("Issuer: %s\n", line);
+  SSL_set_fd(ssl, user_session->connection);
+  fprintf(stderr, "1\n");
+  if (SSL_connect(ssl) == -1){
+    fprintf(stderr, "2\n");
+    ERR_print_errors_fp(stderr);
+  } else {
+    fprintf(stderr, "3\n");
+    X509 *cert;
+    char *line;
+    cert = SSL_get_peer_certificate(ssl);
+    if (cert != NULL) {
+      line = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
+      printf("Subject: %s\n", line);
+      free(line);
+      line = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
+      printf("Issuer: %s\n", line);
     }
   }
   user_session->ssl_connection = ssl;
