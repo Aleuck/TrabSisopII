@@ -44,7 +44,7 @@ int get_file_stats(const char *path, FILE_INFO *file_info) {
 		/* not a regular file */
 		return -1;
 	}
-	//sprintf(file_info->last_modified, "%li", file_stats.st_mtime);
+	sprintf(file_info->last_modified, "%li", file_stats.st_mtime);
 	file_info->size = file_stats.st_size;
 	return 0;
 }
@@ -69,17 +69,25 @@ ssize_t send_message(SSL *sock, MESSAGE *msg) {
 	cur += 4;
 	memcpy(cur, msg->content, MSG_MAX_LENGTH);
 	cur = buffer;
+	
+
 	while (total_sent < MSG_BUFFER_SIZE) {
+		
 		bytes_sent = SSL_write(sock, cur, MSG_BUFFER_SIZE - total_sent);
+		
 		if (bytes_sent == 0) {
+
+
 			return 0;
 		}
 		if (bytes_sent < 0) {
+
 			return -1;
 		}
 		total_sent += bytes_sent;
 		cur = buffer+total_sent;
 	}
+
 	return total_sent;
 }
 

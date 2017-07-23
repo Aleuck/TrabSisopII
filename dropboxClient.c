@@ -109,9 +109,8 @@ int connect_to_server(SESSION *user_session, const char *host, const char *port)
   }
   ssl = SSL_new(ctx);
    SSL_set_fd(ssl, user_session->connection);
-   fprintf(stderr, "1\n");
+   
    if (SSL_connect(ssl) == -1){
-        fprintf(stderr, "2\n");
        ERR_print_errors_fp(stderr);
      }
    else {
@@ -177,6 +176,7 @@ void init_session(SESSION * user_session) {
 
 void end_session(SESSION * user_session) {
   // this will signal threads to stop running as soon as they can;
+  fprintf(stderr, "SERVER CLOSED\n");
   user_session->keep_running = 0;
 }
 
@@ -205,7 +205,7 @@ void send_file(SESSION *user_session, char *file_path) {
   } else {
     // get file stats
     get_file_stats(file_path, &file_to_send);
-    sprintf(&file_to_send.last_modified, "%ld", getTimeServer(user_session));
+    //sprintf(&file_to_send.last_modified, "%ld", getTimeServer(user_session));
 
     flogdebug("send file of size %d.", file_to_send.size);
     fprint_file_info(stdout, &file_to_send);
@@ -367,21 +367,51 @@ void delete_server_file(SESSION *user_session, char *filename) {
   pthread_mutex_unlock(&(user_session->connection_mutex));
 }
 
+void reconnect(SESSION *user_session){
+
+  // fprintf(stderr, "Disconnected from %d\n", user_session->connection);
+
+  // //disconnect_from_server(user_session);
+
+  // SSL_free(user_session->ssl_connection);
+  // close(user_session->connection);
+
+  // if (!connect_to_server(user_session, "127.0.0.1", "9090")) {
+  //   exit(1);
+  // }
+  // if (!login(user_session)) {
+  //   exit(1);
+  // }
+  // fprintf(stderr, "Connected to %d\n", user_session->connection);
+  // return;
+ }
+
 //struct linked_list request_file_list(SESSION *user_session) {
 void request_file_list(SESSION *user_session, struct linked_list *server_list, struct linked_list *deleted_list) {
+  
   if (server_list != NULL)
 	 ll_init(sizeof(struct file_info), server_list);
   if (deleted_list != NULL)
 	 ll_init(sizeof(struct file_info), deleted_list);
-	pthread_mutex_lock(&(user_session->connection_mutex));
+    
+
+	pthread_mutex_lock(&(user_session->connection_mutex));  
   MESSAGE msg = {0,0,{0}};
   msg.code = CMD_LIST;
-
+  
 	int send_len = send_message(user_session->ssl_connection, &msg);
+  if(send_len == 0){
+    reconnect(user_session);
+    send_len = send_message(user_session->ssl_connection, &msg);
+  }
 	if (send_len < 0) goto socket_error;
 	else if (send_len == 0) goto socket_closed;
-
+  
 	int recv_len = recv_message(user_session->ssl_connection, &msg);
+  if(recv_len == 0){
+    reconnect(user_session);
+    recv_len = send_message(user_session->ssl_connection, &msg);
+  }
 	if (recv_len < 0) goto socket_error;
 	else if (recv_len == 0) goto socket_closed;
   if (msg.code != TRANSFER_ACCEPT) {
@@ -393,6 +423,10 @@ void request_file_list(SESSION *user_session, struct linked_list *server_list, s
 	struct file_info info;
 	for (i = 0; i < num_files; i++) {
 		int recv_len = recv_message(user_session->ssl_connection, &msg);
+    if(recv_len == 0){
+    reconnect(user_session);
+    recv_len = send_message(user_session->ssl_connection, &msg);
+  }
 		if (recv_len < 0) goto socket_error;
 		else if (recv_len == 0) goto socket_closed;
 
@@ -428,7 +462,7 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "Usage: %s <fulano> <host> <port>\n", argv[0]);
     exit(-1);
   }
-
+  //do{
   init_session(&user_session);
 
   strncpy(user_session.userid, argv[1], MAXNAME-1);
@@ -454,9 +488,14 @@ int main(int argc, char* argv[]) {
     printf("Couldn't create threads.\n");
     exit(1);
   }
-
+  fprintf(stderr, "Threads created\n");
   pthread_join(thread_sync, NULL);
+  fprintf(stderr, "Sync CLOSED\n");
   pthread_join(thread_cli, NULL);
+  fprintf(stderr, "CLI closed\n");
+  //SSL_free(user_session.ssl_connection);
+  //close(user_session.connection);
+  //}while(1);
   disconnect_from_server(&user_session);
   exit(0);
 }

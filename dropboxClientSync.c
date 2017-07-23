@@ -59,15 +59,19 @@ void *client_sync(void *session_arg) {
   if (wd < 0) {
     flogerror("could not watch `%s`", sync_dir_path);
     end_session(user_session);
+          
+
     exit(EXIT_FAILURE);
   }
 
   while (user_session->keep_running) {
+    
     logdebug("-- start sync --");
     // check for changes on file system
     len = read (fd, buf, BUF_LEN);
     if (len == -1 && errno != EAGAIN) {
       perror("read");
+      
       exit(EXIT_FAILURE);
     } else {
       i = 0;
@@ -132,16 +136,19 @@ void *client_sync(void *session_arg) {
           i += EVENT_SIZE + event->len;
       }
     }
+
     memset(&filelist_server,0,sizeof(struct linked_list));
     memset(&delete_list,0,sizeof(struct linked_list));
     memset(&update_list,0,sizeof(struct linked_list));
+    //fprintf(stderr, "here\n");
     request_file_list(user_session, &filelist_server, &delete_list);
-
+    //fprintf(stderr, "here2\n");
     // should create file list mutex instead
     pthread_mutex_lock(&(user_session->connection_mutex));
     update_list = need_update(&filelist_server, &user_session->files);
+    //fprintf(stderr, "here3\n");
     pthread_mutex_unlock(&(user_session->connection_mutex));
-
+    //fprintf(stderr, "here?\n");
     struct ll_item *item;
     // delete files
     item = delete_list.first;

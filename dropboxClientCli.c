@@ -7,6 +7,7 @@
 #include "dropboxUtil.h"
 #include "dropboxClient.h"
 #include "dropboxClientCli.h"
+#include "dropboxClientSync.h"
 
 #define MAXINPUT 256
 
@@ -32,6 +33,7 @@ int parse_command(char *command) {
   if (0 == strcmp(command, "download")) return CMD_DOWNLOAD;
   if (0 == strcmp(command, "list"    )) return CMD_LIST;
   if (0 == strcmp(command, "exit"    )) return CMD_EXIT;
+  if (0 == strcmp(command, "time"    )) return CMD_TIME;
   return CMD_UNDEFINED;
 }
 
@@ -47,6 +49,11 @@ void *client_cli(void *session_arg) {
     if (strlen(command) == 0) continue;
     comm = strtok(command, " \t\n");
     switch (parse_command(comm)) {
+      case CMD_TIME:
+
+        fprintf(stderr, "Server time: %ld\n", getTimeServer(user_session));
+        
+        break;
       case CMD_UPLOAD:
         filepath = strtok(NULL, " \t\n");
         if (!filepath) {
