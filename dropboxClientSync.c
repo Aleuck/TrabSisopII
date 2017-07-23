@@ -59,19 +59,19 @@ void *client_sync(void *session_arg) {
   if (wd < 0) {
     flogerror("could not watch `%s`", sync_dir_path);
     end_session(user_session);
-          
+
 
     exit(EXIT_FAILURE);
   }
 
   while (user_session->keep_running) {
-    
+
     logdebug("-- start sync --");
     // check for changes on file system
     len = read (fd, buf, BUF_LEN);
     if (len == -1 && errno != EAGAIN) {
       perror("read");
-      
+
       exit(EXIT_FAILURE);
     } else {
       i = 0;
@@ -81,6 +81,7 @@ void *client_sync(void *session_arg) {
         event = (struct inotify_event *) &buf[i];
         switch (event->mask) {
           case IN_CREATE:
+          case IN_MOVED_TO:
             flogdebug("(inotify) created %s (%u)\n", event->name, event->len);
             memset(&event_file,0,sizeof(FILE_INFO));
             strcpy(event_file.name, event->name);
@@ -93,7 +94,7 @@ void *client_sync(void *session_arg) {
             fprintf(stderr, "%s -> last_modified\n",event_file.last_modified);
 
             set_file_stats(file_path, &event_file);
-            
+
             list_file = ll_getref(event_file.name, &user_session->files);
             if (list_file == NULL) {
               ll_put(event_file.name, &event_file.name, &user_session->files);
@@ -129,6 +130,7 @@ void *client_sync(void *session_arg) {
             flogdebug("(inotify) finished send_file %s (%u)\n", event->name, event->len);
             break;
           case IN_DELETE:
+          case IN_MOVED_FROM:
             flogdebug("(inotify) deleted %s (%u)\n", event->name, event->len);
             sprintf(file_path, "%s/%s",sync_dir_path, event->name);
             delete_server_file(user_session, event->name);

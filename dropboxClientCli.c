@@ -11,23 +11,6 @@
 
 #define MAXINPUT 256
 
-void trim(char *str) {
-  int start = 0;
-  int cur = 0;
-  int last_not_space = 0;
-  int i = 0;
-  while (isspace(str[i])) i++;
-  if (str[i] == 0){
-    str[start] = 0;
-    return;
-  }
-  while (str[i] != 0) {
-    if (!isspace(str[i])) last_not_space = cur;
-    str[cur++] = str[i++];
-  }
-  str[last_not_space + 1] = 0;
-}
-
 int parse_command(char *command) {
   if (0 == strcmp(command, "upload"  )) return CMD_UPLOAD;
   if (0 == strcmp(command, "download")) return CMD_DOWNLOAD;
