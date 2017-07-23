@@ -92,6 +92,8 @@ void *client_sync(void *session_arg) {
             sprintf(event_file.last_modified, "%ld", getTimeServer(user_session));
             fprintf(stderr, "%s -> last_modified\n",event_file.last_modified);
 
+            set_file_stats(file_path, &event_file);
+            
             list_file = ll_getref(event_file.name, &user_session->files);
             if (list_file == NULL) {
               ll_put(event_file.name, &event_file.name, &user_session->files);
@@ -113,7 +115,9 @@ void *client_sync(void *session_arg) {
 
             sprintf(event_file.last_modified, "%ld", getTimeServer(user_session));
             fprintf(stderr, "%s -> last_modified\n",event_file.last_modified);
-            
+
+            set_file_stats(file_path, &event_file);
+
             list_file = ll_getref(event_file.name, &user_session->files);
             if (list_file == NULL) {
               ll_put(event_file.name, &event_file.name, &user_session->files);
