@@ -44,10 +44,12 @@ void serialize_server_info(server_t *info, char *buf) {
 	memcpy(buf, (char *)&priority, sizeof(uint32_t));
 	buf += sizeof(uint32_t);
 	// addr
-	memcpy(buf, (char *)&info->addr, sizeof(in_addr_t));
+	in_addr_t addr = htonl(info->addr);
+	memcpy(buf, (char *)&addr, sizeof(in_addr_t));
 	buf += sizeof(in_addr_t);
 	// port
-	memcpy(buf, (char *)&info->port, sizeof(in_port_t));
+	in_port_t port = htons(info->port);
+	memcpy(buf, (char *)&port, sizeof(in_port_t));
 	buf += sizeof(in_port_t);
 	// is_master
 	*buf = info->is_master;
@@ -66,9 +68,11 @@ void deserialize_server_info(server_t *info, char *buf) {
 	buf += sizeof(uint32_t);
 	// addr
 	memcpy((char *)&info->addr, buf, sizeof(in_addr_t));
+	info->addr = ntohl(info->addr);
 	buf += sizeof(in_addr_t);
 	// port
 	memcpy((char *)&info->port, buf, sizeof(in_port_t));
+	info->port = ntohs(info->port);
 	buf += sizeof(in_port_t);
 	// is_master
 	info->is_master = *buf;
@@ -162,6 +166,16 @@ ssize_t recv_message(int sock, SSL *ssl_sock, MESSAGE *msg) {
 
 void fprint_file_info(FILE *stream, struct file_info *info) {
 	fprintf(stream, " `%20s`  size: %9d   mod: %10li\n", info->name, info->size, atol(info->last_modified));
+}
+
+void fprint_server_info(FILE *stream, server_t *info) {
+	fprintf(stream, "server_t {\n");
+	fprintf(stream, "\tid: %d,\n"         , info->id       );
+	fprintf(stream, "\tpriority: %d,\n"   , info->priority );
+	fprintf(stream, "\taddr: %d,\n"       , info->addr     );
+	fprintf(stream, "\tport: %d,\n"       , info->port     );
+	fprintf(stream, "\tis_master: %d,\n, ", info->is_master);
+	fprintf(stream, "}\n");
 }
 
 void trim(char *str) {

@@ -26,4 +26,6 @@ void logout_user(int sockfd, struct user *user);
 
 void fprint_logged_users(FILE *stream, char detailed);
 
+int create_server_dir_for(const char *username);
+
 #endif /* USER_LOGIN_H */

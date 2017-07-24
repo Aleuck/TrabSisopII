@@ -41,6 +41,8 @@
 #define MASTER_ACCEPT    51
 #define MASTER_DECLINE   52
 
+#define SERVER_LIST      60
+
 #define STATUS_DEAD       0
 #define STATUS_PDEAD      1
 #define STATUS_ALIVE      2
@@ -48,7 +50,7 @@
 #define MSG_MAX_LENGTH  1250
 #define MSG_BUFFER_SIZE (1 + 4 + MSG_MAX_LENGTH)
 
-#define SERV_INFO_LEN = 15
+#define SERV_INFO_LEN  15
 
 #define FILE_INFO_BUFLEN (3*MAXNAME + 4)
 
@@ -86,6 +88,7 @@ void deserialize_server_info(server_t *info, char *buf);
 int get_file_stats(const char *path, FILE_INFO *file_info);
 void set_file_stats(const char *path, const FILE_INFO *file_info);
 void fprint_file_info(FILE *stream, struct file_info *info);
+void fprint_server_info(FILE *stream, server_t *info);
 ssize_t recv_message(int sock, SSL *ssl_sock, MESSAGE *msg);
 ssize_t send_message(int sock, SSL *ssl_sock, MESSAGE *msg);
 void trim(char *str);
