@@ -599,7 +599,7 @@ void procces_command(struct user *current_user, MESSAGE user_msg, SSL *client_so
         pthread_mutex_unlock(current_user->cli_mutex);
         break;
       }
-      if (server_file != NULL && current_user->cli->files.length < MAXFILES) {
+      if (server_file == NULL && current_user->cli->files.length > MAXFILES) {
         // max_files
         msg.code = TRANSFER_DECLINE;
         send_message(0, client_socket, &msg);
