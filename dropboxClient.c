@@ -148,9 +148,9 @@ int login(SESSION *user_session) {
   strcpy(msg.content, user_session->userid);
   msg.length = strlen(user_session->userid)+1;
   msg.code = LOGIN_REQUEST;
-  send_message(user_session->ssl_connection, &msg);
+  send_message(0, user_session->ssl_connection, &msg);
 
-  if ((size_received = recv_message(user_session->ssl_connection, &msg)) == 0){
+  if ((size_received = recv_message(0, user_session->ssl_connection, &msg)) == 0){
     flogdebug("size_received : %d", size_received);
     printf("Server cap reached\n");
     return 0;
@@ -214,9 +214,9 @@ void send_file(SESSION *user_session, char *file_path) {
     serialize_file_info(&file_to_send ,msg.content);
     msg.code = CMD_UPLOAD;
     msg.length = FILE_INFO_BUFLEN;
-    send_message(user_session->ssl_connection, &msg);
+    send_message(0, user_session->ssl_connection, &msg);
     // get response
-    recv_message(user_session->ssl_connection, &msg);
+    recv_message(0, user_session->ssl_connection, &msg);
     if (msg.code != TRANSFER_ACCEPT) {
       // server refused
       flogwarning("server refused file.");
@@ -227,7 +227,7 @@ void send_file(SESSION *user_session, char *file_path) {
         msg.code = TRANSFER_OK;
         send_size = fread(msg.content, 1, sizeof(msg.content), file_handler);
         msg.length = send_size;
-        aux_print = send_message(user_session->ssl_connection, &msg);
+        aux_print = send_message(0, user_session->ssl_connection, &msg);
         if (aux_print == -1) {
           //TODO: error
           logerror("couldn't send file completely.");
@@ -243,7 +243,7 @@ void send_file(SESSION *user_session, char *file_path) {
         msg.code = TRANSFER_END;
         send_size = fread(msg.content, 1, (int) file_to_send.size - total_sent, file_handler);
         msg.length = send_size;
-        aux_print = send_message(user_session->ssl_connection, &msg);
+        aux_print = send_message(0, user_session->ssl_connection, &msg);
         if (aux_print == -1) {
           //TODO: error
           logerror("couldn't send file completely.");
@@ -289,9 +289,9 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   msg.code = CMD_DOWNLOAD;
   msg.length = FILE_INFO_BUFLEN;
   serialize_file_info(&file_to_get, msg.content);
-  aux_print = send_message(user_session->ssl_connection, &msg);
+  aux_print = send_message(0, user_session->ssl_connection, &msg);
   sleep(1);
-  aux_print = recv_message(user_session->ssl_connection, &msg);
+  aux_print = recv_message(0, user_session->ssl_connection, &msg);
   flogdebug("MSGCODE %d\nMSGLEN %d\nMSG:\n%0.256s", msg.code, msg.length,msg.content);
   if (msg.code != TRANSFER_ACCEPT) {
     fclose(file_handler);
@@ -305,7 +305,7 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
   logdebug("(get) start to receive file.");
   flogdebug("(get) size_buffer = %u.", sizeof(msg.content));
   while (file_to_get.size - received_total > sizeof(msg.content)){
-    aux_print = recv_message(user_session->ssl_connection, &msg);
+    aux_print = recv_message(0, user_session->ssl_connection, &msg);
     if (aux_print <= 0) {
       // conexao perdida
       fclose(file_handler);
@@ -328,7 +328,7 @@ void get_file(SESSION *user_session, char *filename, int to_sync_folder) {
     flogdebug("(get) %d/%u (%d to go)", received_total, file_to_get.size, (int) file_to_get.size - received_total);
   }
   if (received_total < file_to_get.size) {
-    aux_print = recv_message(user_session->ssl_connection, &msg);
+    aux_print = recv_message(0, user_session->ssl_connection, &msg);
     if (aux_print <= 0) {
       // conexao perdida
       fclose(file_handler);
@@ -364,7 +364,7 @@ void delete_server_file(SESSION *user_session, char *filename) {
   msg.length = sizeof(FILE_INFO);
   serialize_file_info(&file_to_delete, msg.content);
   pthread_mutex_lock(&(user_session->connection_mutex));
-  aux_print = send_message(user_session->ssl_connection, &msg);
+  aux_print = send_message(0, user_session->ssl_connection, &msg);
   pthread_mutex_unlock(&(user_session->connection_mutex));
 }
 
@@ -400,18 +400,18 @@ void request_file_list(SESSION *user_session, struct linked_list *server_list, s
   MESSAGE msg = {0,0,{0}};
   msg.code = CMD_LIST;
 
-	int send_len = send_message(user_session->ssl_connection, &msg);
+	int send_len = send_message(0, user_session->ssl_connection, &msg);
   if(send_len == 0){
     reconnect(user_session);
-    send_len = send_message(user_session->ssl_connection, &msg);
+    send_len = send_message(0, user_session->ssl_connection, &msg);
   }
 	if (send_len < 0) goto socket_error;
 	else if (send_len == 0) goto socket_closed;
 
-	int recv_len = recv_message(user_session->ssl_connection, &msg);
+	int recv_len = recv_message(0, user_session->ssl_connection, &msg);
   if(recv_len == 0){
     reconnect(user_session);
-    recv_len = send_message(user_session->ssl_connection, &msg);
+    recv_len = send_message(0, user_session->ssl_connection, &msg);
   }
 	if (recv_len < 0) goto socket_error;
 	else if (recv_len == 0) goto socket_closed;
@@ -423,10 +423,10 @@ void request_file_list(SESSION *user_session, struct linked_list *server_list, s
 	uint32_t i;
 	struct file_info info;
 	for (i = 0; i < num_files; i++) {
-		int recv_len = recv_message(user_session->ssl_connection, &msg);
+		int recv_len = recv_message(0, user_session->ssl_connection, &msg);
     if(recv_len == 0){
     reconnect(user_session);
-    recv_len = send_message(user_session->ssl_connection, &msg);
+    recv_len = send_message(0, user_session->ssl_connection, &msg);
   }
 		if (recv_len < 0) goto socket_error;
 		else if (recv_len == 0) goto socket_closed;

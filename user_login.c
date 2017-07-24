@@ -47,7 +47,7 @@ static void rand_str(char *dest, size_t length) {
 static void receive_username(SSL *sockfd, char username[MAXNAME]) {
 	MESSAGE msg;
 	memset(&msg, 0, sizeof(msg));
-	int received_size = recv_message(sockfd, &msg);
+	int received_size = recv_message(0, sockfd, &msg);
 	if(received_size == 0){
 		//TODO
 	}

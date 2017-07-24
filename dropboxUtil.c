@@ -96,7 +96,7 @@ void set_file_stats(const char *path, const FILE_INFO *file_info) {
 	utime(path, &mod_stats);
 }
 
-ssize_t send_message(SSL *sock, MESSAGE *msg) {
+ssize_t send_message(int sock, SSL *ssl_sock, MESSAGE *msg) {
 	//fprintf(stderr, "sending msg\n");
 	char buffer[MSG_BUFFER_SIZE];
 	char *cur = buffer;
@@ -109,19 +109,16 @@ ssize_t send_message(SSL *sock, MESSAGE *msg) {
 	cur += 4;
 	memcpy(cur, msg->content, MSG_MAX_LENGTH);
 	cur = buffer;
-	
-
 	while (total_sent < MSG_BUFFER_SIZE) {
-		
-		bytes_sent = SSL_write(sock, cur, MSG_BUFFER_SIZE - total_sent);
-		
+		if (ssl_sock != NULL) {
+			bytes_sent = SSL_write(ssl_sock, cur, MSG_BUFFER_SIZE - total_sent);
+		} else {
+			bytes_sent = send(sock, cur, MSG_BUFFER_SIZE - total_sent, 0);
+		}
 		if (bytes_sent == 0) {
-
-
 			return 0;
 		}
 		if (bytes_sent < 0) {
-
 			return -1;
 		}
 		total_sent += bytes_sent;
@@ -131,14 +128,18 @@ ssize_t send_message(SSL *sock, MESSAGE *msg) {
 	return total_sent;
 }
 
-ssize_t recv_message(SSL *sock, MESSAGE *msg) {
+ssize_t recv_message(int sock, SSL *ssl_sock, MESSAGE *msg) {
 	//fprintf(stderr, "recv msg\n");
 	char buffer[MSG_BUFFER_SIZE];
 	char *cur = buffer;
 	int bytes_received = 0;
 	ssize_t total_received = 0;
 	while (bytes_received < MSG_BUFFER_SIZE) {
-		bytes_received = SSL_read(sock, cur, MSG_BUFFER_SIZE - total_received);
+		if (ssl_sock != NULL) {
+			bytes_received = SSL_read(ssl_sock, cur, MSG_BUFFER_SIZE - total_received);
+		} else {
+			bytes_received = recv(sock, cur, MSG_BUFFER_SIZE - total_received, 0);
+		}
 		if (bytes_received == 0) {
 			return 0;
 		}

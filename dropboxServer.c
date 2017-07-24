@@ -51,7 +51,7 @@ void sendTimeServer(SSL *client_socket) {
   msg.code = TRANSFER_TIME;
   msg.length = sizeof(server_time);
   sprintf(msg.content,"%ld", server_time);
-  send_message(client_socket, &msg);
+  send_message(0, client_socket, &msg);
 }
 
 void receive_file(SSL *client_socket, FILE_INFO file, struct user *user){
@@ -68,7 +68,7 @@ void receive_file(SSL *client_socket, FILE_INFO file, struct user *user){
   if (server_file != NULL && server_file->size == file.size && atol(server_file->last_modified) == atol(file.last_modified)) {
     // server_file already updated
     msg.code = TRANSFER_DECLINE;
-    send_message(client_socket, &msg);
+    send_message(0, client_socket, &msg);
   } else if (user->cli->files.length < MAXFILES) {
     // user can send file
     sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, user->cli->userid, file.name);
@@ -78,14 +78,14 @@ void receive_file(SSL *client_socket, FILE_INFO file, struct user *user){
     if (file_handler == NULL) {
       logerror("(receive) Could not open file to write.");
       msg.code = TRANSFER_ERROR;
-      aux_print = send_message(client_socket, &msg);
+      aux_print = send_message(0, client_socket, &msg);
     } else {
       msg.code = TRANSFER_ACCEPT;
-      aux_print = send_message(client_socket, &msg);
+      aux_print = send_message(0, client_socket, &msg);
       floginfo("(receive) (user %s) accepted file `%s` of size %d. waiting transfer...", user->cli->userid, file.name, file.size);
       while (file.size - received_total > sizeof(msg.content)) {
         bzero(&msg,sizeof(msg));
-        aux_print = recv_message(client_socket, &msg);
+        aux_print = recv_message(0, client_socket, &msg);
         received_size = msg.length;
         if (msg.code != TRANSFER_OK) {
           logerror("Transfer not OK!!!");
@@ -96,7 +96,7 @@ void receive_file(SSL *client_socket, FILE_INFO file, struct user *user){
       }
       if (received_total < file.size) {
         bzero(&msg, sizeof(msg));
-        aux_print = recv_message(client_socket, &msg);
+        aux_print = recv_message(0, client_socket, &msg);
         received_size = msg.length;
         if (msg.code != TRANSFER_END) {
           logerror("Transfer not OK!!!");
@@ -123,7 +123,7 @@ void receive_file(SSL *client_socket, FILE_INFO file, struct user *user){
   } else {
     logdebug("(receive) declined file.");
     msg.code = TRANSFER_DECLINE;
-    send_message(client_socket, &msg);
+    send_message(0, client_socket, &msg);
     // response = TRANSFER_DECLINE;
   }
   pthread_mutex_unlock(user->cli_mutex);
@@ -145,7 +145,7 @@ void send_file(SSL *client_socket, FILE_INFO file, struct user *user){
   if (file_handler == NULL) {
     printf("Error sending the file to user: %s \n", user->cli->userid);
     msg.code = TRANSFER_ERROR;
-    aux_print = send_message(client_socket, &msg);
+    aux_print = send_message(0, client_socket, &msg);
     pthread_mutex_unlock(user->cli_mutex);
     return;
   }
@@ -154,14 +154,14 @@ void send_file(SSL *client_socket, FILE_INFO file, struct user *user){
   fprint_file_info(stdout, &file);
   serialize_file_info(&file, msg.content);
   msg.length = FILE_INFO_BUFLEN;
-  aux_print = send_message(client_socket, &msg);
+  aux_print = send_message(0, client_socket, &msg);
   flogdebug("(send) size_buffer = %d.", sizeof(msg.content));
   while (file.size - total_sent > sizeof(msg.content)) {
     bzero(&msg,sizeof(msg));
     msg.code = TRANSFER_OK;
     send_size = fread(msg.content, 1, sizeof(msg.content), file_handler);
     msg.length = send_size;
-    aux_print = send_message(client_socket, &msg);
+    aux_print = send_message(0, client_socket, &msg);
     if (aux_print <= 0) {
       //TODO:
       logerror("(send) couldn't send file completely.");
@@ -177,7 +177,7 @@ void send_file(SSL *client_socket, FILE_INFO file, struct user *user){
     msg.code = TRANSFER_END;
     send_size = fread(msg.content, 1, file.size - total_sent, file_handler);
     msg.length = send_size;
-    aux_print = send_message(client_socket, &msg);
+    aux_print = send_message(0, client_socket, &msg);
     total_sent += send_size;
     flogdebug("(send) %d/%d (%d to go)", total_sent, file.size, (long) file.size - (long) total_sent);
   }
@@ -214,13 +214,13 @@ void send_file_list(SSL *client_socket, struct user *user) {
   msg.code = TRANSFER_ACCEPT;
   msg.length = user->cli->files.length + user->cli->deleted_files.length;
   // send num files
-  send_message(client_socket, &msg);
+  send_message(0, client_socket, &msg);
   item = user->cli->files.first;
   while (item != NULL) {
     msg.code = FILE_OK;
     info = (struct file_info *) item->value;
     serialize_file_info(info, msg.content);
-    send_message(client_socket, &msg);
+    send_message(0, client_socket, &msg);
     item = item->next;
   }
   item = user->cli->deleted_files.first;
@@ -228,7 +228,7 @@ void send_file_list(SSL *client_socket, struct user *user) {
     msg.code = FILE_DELETED;
     info = (struct file_info *) item->value;
     serialize_file_info(info, msg.content);
-    send_message(client_socket, &msg);
+    send_message(0, client_socket, &msg);
     item = item->next;
   }
   pthread_mutex_unlock(user->cli_mutex);
@@ -388,6 +388,7 @@ void procces_command(struct user *current_user, MESSAGE user_msg, SSL *client_so
       logdebug("(procces_command) send_time started.");
       sendTimeServer(client_socket);
       logdebug("(procces_command) send_time finished.");
+      break;
     default:
       logdebug("(procces_command) unreconized message.");
   }
@@ -410,15 +411,15 @@ void *treat_client(void *client_sock){
   }
   if (this_server.is_master) {
     response.code = LOGIN_ACCEPT;
-    sent = send_message(ssl, &response);
-    while(recv_message(ssl, &client_msg) != 0){
+    sent = send_message(0, ssl, &response);
+    while(recv_message(0, ssl, &client_msg) != 0){
       procces_command(new_user, client_msg, ssl);
     }
   } else {
     response.code = SERVER_REDIRECT;
     response.length = 1;
     serialize_server_info(&master_server, response.content);
-    sent = send_message(ssl, &response);
+    sent = send_message(0, ssl, &response);
   }
   logout_user(socket ,new_user);
   SSL_shutdown(ssl);

@@ -86,8 +86,8 @@ void deserialize_server_info(server_t *info, char *buf);
 int get_file_stats(const char *path, FILE_INFO *file_info);
 void set_file_stats(const char *path, const FILE_INFO *file_info);
 void fprint_file_info(FILE *stream, struct file_info *info);
-ssize_t recv_message(SSL *sock, MESSAGE *msg);
-ssize_t send_message(SSL *sock, MESSAGE *msg);
+ssize_t recv_message(int sock, SSL *ssl_sock, MESSAGE *msg);
+ssize_t send_message(int sock, SSL *ssl_sock, MESSAGE *msg);
 void trim(char *str);
 
 #endif /* DROPBOX_UTIL_H */
