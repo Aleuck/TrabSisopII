@@ -619,7 +619,7 @@ void procces_command(struct user *current_user, MESSAGE user_msg, SSL *client_so
         } else {
           *server_file = f_info;
         }
-        send_file_replicas(f_info, current_user->cli->userid)
+        send_file_replicas(f_info, current_user->cli->userid);
       }
       pthread_mutex_unlock(current_user->cli_mutex);
       break;
