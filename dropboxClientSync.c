@@ -44,6 +44,7 @@ void *client_sync(void *session_arg) {
   int fd, wd;
   int len, i = 0;
   struct inotify_event *event;
+  int sync_run = 0;
   struct linked_list filelist_server, update_list, delete_list;
   // Initialize inotify
   fd = inotify_init1(IN_NONBLOCK);
@@ -65,7 +66,7 @@ void *client_sync(void *session_arg) {
   }
 
   while (user_session->keep_running) {
-
+    sync_run++;
     logdebug("-- start sync --");
     // check for changes on file system
     len = read (fd, buf, BUF_LEN);
@@ -185,6 +186,7 @@ void *client_sync(void *session_arg) {
     ll_term(&delete_list);
     ll_term(&filelist_server);
     sleep(3);
+    
   }
   return 0;
 }

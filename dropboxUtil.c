@@ -10,6 +10,7 @@
 #include <openssl/err.h>
 #include <sys/time.h>
 #include <utime.h>
+#include <ctype.h>
 
 void serialize_file_info(struct file_info *info, char *buf) {
 	memcpy(buf, info->name, MAXNAME);

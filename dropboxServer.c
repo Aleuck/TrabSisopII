@@ -40,6 +40,8 @@ struct linked_list server_list = { 0, 0, 0 };
 
 pthread_mutex_t replication_mutex = {{0}};
 
+int connect_to_master(in_addr_t host, in_port_t port);
+
 void init_ssl(){
 	OpenSSL_add_all_algorithms();
 	SSL_library_init();
@@ -56,80 +58,61 @@ void sendTimeServer(SSL *client_socket) {
   send_message(0, client_socket, &msg);
 }
 
-void receive_file(int sock, SSL *ssl_sock, FILE_INFO file, struct user *user){
+int receive_file(int sock, SSL *ssl_sock, FILE_INFO file, char *userid){
   char path[256];
   uint32_t received_total = 0;
   int32_t received_size = 0, aux_print = 0;
   MESSAGE msg = {0, 0, {0}};
   FILE *file_handler;
   const char* home_dir = getenv ("HOME");
-  FILE_INFO *server_file;
-  FILE_INFO *deleted_file;
-  server_file = ll_getref(file.name, &user->cli->files);
-  if (server_file != NULL && server_file->size == file.size && atol(server_file->last_modified) == atol(file.last_modified)) {
-    // server_file already updated
-    msg.code = TRANSFER_DECLINE;
-    send_message(sock, ssl_sock, &msg);
-  } else if (user->cli->files.length < MAXFILES) {
-    // user can send file
-    sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, user->cli->userid, file.name);
-    fprintf(stderr, "%s\n", path);
-    file_handler = fopen(path,"w");
-    bzero(&msg,sizeof(msg));
-    if (file_handler == NULL) {
-      logerror("(receive) Could not open file to write.");
-      msg.code = TRANSFER_ERROR;
-      aux_print = send_message(sock, ssl_sock, &msg);
-    } else {
-      msg.code = TRANSFER_ACCEPT;
-      aux_print = send_message(sock, ssl_sock, &msg);
-      floginfo("(receive) (user %s) accepted file `%s` of size %d. waiting transfer...", user->cli->userid, file.name, file.size);
-      while (file.size - received_total > sizeof(msg.content)) {
-        bzero(&msg,sizeof(msg));
-        aux_print = recv_message(0, ssl_sock, &msg);
-        received_size = msg.length;
-        if (msg.code != TRANSFER_OK) {
-          logerror("Transfer not OK!!!");
-        }
-        fwrite(msg.content, 1,received_size, file_handler); // Escreve no arquivo
-        received_total += received_size;
-        flogdebug("(receive) %d/%d (%d to go)", received_total, file.size, (int) file.size - received_total);
-      }
-      if (received_total < file.size) {
-        bzero(&msg, sizeof(msg));
-        aux_print = recv_message(sock, ssl_sock, &msg);
-        received_size = msg.length;
-        if (msg.code != TRANSFER_END) {
-          logerror("Transfer not OK!!!");
-        }
-        fwrite(msg.content, 1, received_size, file_handler); // Escreve no arquivo
-        received_total += received_size;
-        flogdebug("(receive) %d/%d (%d to go)", received_total, file.size, (int) file.size - received_total);
-      }
-      fclose(file_handler);
-      set_file_stats(path, &file);
-      // remove from deleted
-      deleted_file = ll_getref(file.name, &user->cli->deleted_files);
-      if (deleted_file != NULL) {
-        ll_del(file.name, &user->cli->deleted_files);
-      }
-      // add to file list
-      if (server_file == NULL) {
-        ll_put(file.name, &file, &user->cli->files);
-      } else {
-        *server_file = file;
-      }
-      fprint_file_info(stdout, &file);
-    }
+  sprintf (path, "%s/sisopBox/sync_dir_%s/%s",home_dir, userid, file.name);
+  fprintf(stderr, "%s\n", path);
+  file_handler = fopen(path,"w");
+  bzero(&msg,sizeof(msg));
+  if (file_handler == NULL) {
+    logerror("(receive) Could not open file to write.");
+    msg.code = TRANSFER_ERROR;
+    aux_print = send_message(sock, ssl_sock, &msg);
+    if (aux_print <= 0) return aux_print;
+    return -1;
   } else {
-    logdebug("(receive) declined file.");
-    msg.code = TRANSFER_DECLINE;
-    send_message(sock, ssl_sock, &msg);
-    // response = TRANSFER_DECLINE;
+    msg.code = TRANSFER_ACCEPT;
+    aux_print = send_message(sock, ssl_sock, &msg);
+    if (aux_print <= 0) return aux_print;
+    flogdebug("(receive) (user %s) accepted file `%s` of size %d. waiting transfer...", userid, file.name, file.size);
+    while (file.size - received_total > sizeof(msg.content)) {
+      bzero(&msg,sizeof(msg));
+      aux_print = recv_message(0, ssl_sock, &msg);
+      if (aux_print <= 0) return aux_print;
+      received_size = msg.length;
+      if (msg.code != TRANSFER_OK) {
+        logerror("Transfer not OK!!!");
+        return -1;
+      }
+      fwrite(msg.content, 1, received_size, file_handler); // Escreve no arquivo
+      received_total += received_size;
+      flogdebug("(receive) %d/%d (%d to go)", received_total, file.size, (int) file.size - received_total);
+    }
+    if (received_total < file.size) {
+      bzero(&msg, sizeof(msg));
+      aux_print = recv_message(sock, ssl_sock, &msg);
+      if (aux_print <= 0) return aux_print;
+      received_size = msg.length;
+      if (msg.code != TRANSFER_END) {
+        logerror("Transfer not OK!!!");
+        return -1;
+      }
+      fwrite(msg.content, 1, received_size, file_handler); // Escreve no arquivo
+      received_total += received_size;
+      flogdebug("(receive) %d/%d (%d to go)", received_total, file.size, (int) file.size - received_total);
+    }
+    fclose(file_handler);
+    set_file_stats(path, &file);
+    return 1;
   }
 }
 
-int send_file(int sock, SSL *ssl_sock, FILE_INFO file, struct user *user){
+int send_file(int sock, SSL *ssl_sock, FILE_INFO file, char *userid){
   char path[512];
   MESSAGE msg = {0,0,{0}};
   int32_t send_size, aux_print;
@@ -137,12 +120,12 @@ int send_file(int sock, SSL *ssl_sock, FILE_INFO file, struct user *user){
   FILE *file_handler;
   const char* home_dir = getenv ("HOME");
 
-  sprintf (path, "%s/sisopBox/sync_dir_%s/%s", home_dir, user->cli->userid,file.name);
+  sprintf (path, "%s/sisopBox/sync_dir_%s/%s", home_dir, userid,file.name);
 
   fprintf(stderr, "Sending file %s\n", path);
   file_handler = fopen(path, "r");
   if (file_handler == NULL) {
-    printf("Error sending the file: %s \n", user->cli->userid);
+    printf("Error sending the file: %s \n", userid);
     msg.code = TRANSFER_ERROR;
     aux_print = send_message(sock, ssl_sock, &msg);
     return 0;
@@ -164,7 +147,7 @@ int send_file(int sock, SSL *ssl_sock, FILE_INFO file, struct user *user){
       //TODO:
       logerror("(send) couldn't send file completely.");
       fclose(file_handler);
-      return;
+      return aux_print;
     }
     total_sent += send_size;
     flogdebug("(send) %d/%d (%d to go)", total_sent, file.size, file.size - total_sent);
@@ -175,25 +158,26 @@ int send_file(int sock, SSL *ssl_sock, FILE_INFO file, struct user *user){
     send_size = fread(msg.content, 1, file.size - total_sent, file_handler);
     msg.length = send_size;
     aux_print = send_message(sock, ssl_sock, &msg);
+    if (aux_print <= 0) {
+      //TODO:
+      logerror("(send) couldn't send file completely.");
+      fclose(file_handler);
+      return aux_print;
+    }
     total_sent += send_size;
     flogdebug("(send) %d/%d (%d to go)", total_sent, file.size, (long) file.size - (long) total_sent);
   }
-  fprintf(stderr, "(send) finished: %s\n", user->cli->userid);
+  fprintf(stderr, "(send) finished: %s\n", userid);
   fclose(file_handler);
   return 1;
 }
 
-void delete_file(SSL *ssl_sock, FILE_INFO file, struct user *user) {
+void delete_file(FILE_INFO file, char *userid) {
   char path[512];
   //int32_t send_size, aux_print;
   const char* home_dir = getenv ("HOME");
-  sprintf (path, "%s/sisopBox/sync_dir_%s/%s", home_dir, user->cli->userid,file.name);
+  sprintf (path, "%s/sisopBox/sync_dir_%s/%s", home_dir, userid,file.name);
   fprintf(stderr, "Deleting file `%s`\n", path);
-  struct file_info *localfile = ll_getref(file.name, &user->cli->files);
-  if (localfile != NULL) {
-    ll_put(file.name, localfile, &user->cli->deleted_files);
-    ll_del(file.name, &user->cli->files);
-  }
   remove(path);
 }
 
@@ -214,6 +198,39 @@ int send_server_list(int sock, SSL *ssl_sock) {
 
   msg.length = i;
   return send_message(sock, ssl_sock, &msg);
+}
+
+int send_file_replicas(FILE_INFO file, char *userid){
+  MESSAGE msg = {0,0,{0}};
+  struct ll_item *item = server_list.first;
+  struct ll_item *next;
+  server_t *server;
+  int res;
+  msg.code = CMD_UPLOAD;
+  msg.length = 1;
+  memcpy(msg.content, userid, MAXNAME);
+  serialize_file_info(&file, msg.content+MAXNAME);
+  while (item != NULL) {
+    next = item->next;
+    server = item->value;
+    int attempts = 5;
+    while (attempts > 0) {
+      res = send_message(server->connection, NULL, &msg);
+      if (res > 0) {
+        res = send_file(server->connection, NULL, file, userid);
+      }
+      if (res == 0) {
+        attempts = 0;
+      }
+      attempts -= 1;
+      if (attempts <= 0) {
+        ll_del(item->key, &server_list);
+      }
+    }
+    item = next;
+  }
+  this_server.is_master = 1;
+  this_server.priority = 0;
 }
 
 int recv_master_cmd(int sock) {
@@ -238,16 +255,20 @@ int recv_master_cmd(int sock) {
       pthread_mutex_unlock(&replication_mutex);
       break;
     case CMD_UPLOAD:
+      pthread_mutex_lock(&replication_mutex);
       memcpy(userid, msg.content, MAXNAME);
       deserialize_file_info(&file_info, msg.content+MAXNAME);
       create_server_dir_for(userid);
-      //TODO
+      res = receive_file(sock, NULL, file_info, userid);
+      pthread_mutex_unlock(&replication_mutex);
       break;
     case CMD_DELETE:
+      pthread_mutex_lock(&replication_mutex);
       memcpy(userid, msg.content, MAXNAME);
       deserialize_file_info(&file_info, msg.content+MAXNAME);
       create_server_dir_for(userid);
-      //TODO
+      delete_file(file_info, userid);
+      pthread_mutex_unlock(&replication_mutex);
       break;
     default:
       break;
@@ -337,7 +358,34 @@ int get_socket(int port){
 }
 
 void master_election() {
-  //TODO
+  struct ll_item *item = server_list.first;
+  struct ll_item *next;
+  server_t *server;
+  int res;
+  while (item != NULL) {
+    next = item->next;
+    server = item->value;
+    if (server->id == this_server.id) {
+      this_server.is_master = 1;
+      this_server.priority = 0;
+      ll_del(item->key, &server_list);
+      return;
+    }
+    int attempts = 5;
+    while (attempts > 0) {
+      res = connect_to_master(server->addr, REPLIC_PORT);
+      if (res == 1) {
+        ll_del(item->key, &server_list);
+        return;
+      }
+      attempts -= 1;
+      sleep(3);
+    }
+    ll_del(item->key, &server_list);
+    item = next;
+  }
+  this_server.is_master = 1;
+  this_server.priority = 0;
 }
 
 int connect_to_master(in_addr_t host, in_port_t port) {
@@ -413,8 +461,9 @@ int connect_to_slave(int my_sock) {
   server_t slave = {0,0,0,0,0,0,{0}};
   int connection;
   struct sockaddr_in sockaddr;
+  socklen_t sockaddr_size = sizeof(sockaddr);
   memset((char *) &sockaddr, 0, sizeof(sockaddr));
-  connection = accept(my_sock, (struct sockaddr *)&sockaddr, sizeof(sockaddr));
+  connection = accept(my_sock, (struct sockaddr *)&sockaddr, &sockaddr_size);
   if (connection < 0) {
     // connection failed
     return -1;
@@ -430,7 +479,7 @@ int connect_to_slave(int my_sock) {
     close(connection);
     return -1;
   }
-  if (msg.code =! MASTER_CONNECT) {
+  if (msg.code != MASTER_CONNECT) {
     return -1;
   }
   if (!this_server.is_master) {
@@ -492,11 +541,9 @@ int connect_to_client(int server_sock){
 }
 
 SSL *ssl_connect(int client_sock){
-  SSL_METHOD *method;
   SSL_CTX *ctx;
   SSL *ssl;
-
-  method = SSLv23_server_method();
+  SSL_METHOD *method = SSLv23_server_method();
   ctx = SSL_CTX_new(method);
   if(ctx == NULL){
     ERR_print_errors_fp(stderr);
@@ -529,22 +576,51 @@ SSL *ssl_connect(int client_sock){
 
 void procces_command(struct user *current_user, MESSAGE user_msg, SSL *client_socket){
   FILE_INFO f_info;
+  MESSAGE msg = {0,0,{0}};
+  int res;
   switch(user_msg.code){
     case CMD_DOWNLOAD:
       deserialize_file_info(&f_info, user_msg.content);
       logdebug("(procces_command) send_file started.");
       pthread_mutex_lock(current_user->cli_mutex);
-      send_file(0, client_socket, f_info, current_user);
+      send_file(0, client_socket, f_info, current_user->cli->userid);
       pthread_mutex_unlock(current_user->cli_mutex);
       logdebug("(procces_command) send_file finished.");
       break;
     case CMD_UPLOAD:
       deserialize_file_info(&f_info, user_msg.content);
-      logdebug("(procces_command) receive_file started.");
       pthread_mutex_lock(current_user->cli_mutex);
-      receive_file(0, client_socket, f_info, current_user);
+      FILE_INFO *server_file;
+      server_file = ll_getref(f_info.name, &current_user->cli->files);
+      if (server_file != NULL && server_file->size == f_info.size && atol(server_file->last_modified) == atol(f_info.last_modified)) {
+        // server_file already updated
+        msg.code = TRANSFER_DECLINE;
+        send_message(0, client_socket, &msg);
+        pthread_mutex_unlock(current_user->cli_mutex);
+        break;
+      }
+      if (server_file != NULL && current_user->cli->files.length < MAXFILES) {
+        // max_files
+        msg.code = TRANSFER_DECLINE;
+        send_message(0, client_socket, &msg);
+        pthread_mutex_unlock(current_user->cli_mutex);
+        break;
+      }
+      res = receive_file(0, client_socket, f_info, current_user->cli->userid);
+      if (res == 1) {
+        // remove from deleted
+        FILE_INFO *deleted_file = ll_getref(f_info.name, &current_user->cli->deleted_files);
+        if (deleted_file != NULL) {
+          ll_del(f_info.name, &current_user->cli->deleted_files);
+        }
+        // add to file list
+        if (server_file == NULL) {
+          ll_put(f_info.name, &f_info, &current_user->cli->files);
+        } else {
+          *server_file = f_info;
+        }
+      }
       pthread_mutex_unlock(current_user->cli_mutex);
-      logdebug("(procces_command) receive_file finished.");
       break;
     case CMD_LIST:
       logdebug("(procces_command) send_file_list started.");
@@ -557,9 +633,17 @@ void procces_command(struct user *current_user, MESSAGE user_msg, SSL *client_so
       deserialize_file_info(&f_info, user_msg.content);
       logdebug("(procces_command) delete_file started.");
       pthread_mutex_lock(current_user->cli_mutex);
-      delete_file(client_socket, f_info, current_user);
+      delete_file(f_info, current_user->cli->userid);
+      struct file_info *localfile = ll_getref(f_info.name, &current_user->cli->files);
+      if (localfile != NULL) {
+        ll_put(f_info.name, localfile, &current_user->cli->deleted_files);
+        ll_del(f_info.name, &current_user->cli->files);
+      }
       pthread_mutex_unlock(current_user->cli_mutex);
       logdebug("(procces_command) delete_file finished.");
+      break;
+    case CMD_SERV_LIST:
+      //TODO
       break;
     case CMD_TIME:
       logdebug("(procces_command) send_time started.");
@@ -638,19 +722,13 @@ void *server_cli() {
   }
 }
 
-void *heartbeat() {
-  struct ll_item *replic = server_list.first;
-  while (replic != NULL) {
-    replic = replic->next;
-  }
-}
-
 void *get_slaves() {
   int my_sock = get_socket(REPLIC_PORT);
   int slave_sock;
   while (keep_running) {
     connect_to_slave(my_sock);
   }
+  exit(0);
 }
 
 void *server_sync() {
@@ -679,6 +757,7 @@ void *server_sync() {
     } else {
       res = recv_master_cmd(master_server.connection);
       if (res == 0) {
+        master_server.id = 0;
         // master_disconnected;
         loginfo("connection to master lost");
         sleep(this_server.priority);
@@ -687,6 +766,7 @@ void *server_sync() {
       }
     }
   }
+  exit(0);
 }
 
 int main(int argc, char* argv[]) {

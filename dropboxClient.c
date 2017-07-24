@@ -29,6 +29,8 @@
 
 #endif
 
+struct linked_list server_list = { 0, 0, 0 };
+
 char* get_dir_path(const char *userid) {
   static char path[256];
   const char* home_dir = getenv ("HOME");
@@ -463,9 +465,8 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "Usage: %s <fulano> <host> <port>\n", argv[0]);
     exit(-1);
   }
-  //do{
+  ll_init(sizeof(server_t), &server_list);
   init_session(&user_session);
-
   strncpy(user_session.userid, argv[1], MAXNAME-1);
   if (!connect_to_server(&user_session, argv[2], argv[3])) {
     exit(1);
